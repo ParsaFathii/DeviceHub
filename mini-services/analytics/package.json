@@ -1,0 +1,11 @@
+{
+  "name": "devicehub-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeviceHub Python analytics & ML microservice (FastAPI, port 3014)",
+  "scripts": {
+    "dev": "python3 -m uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload",
+    "start": "python3 -m uvicorn app.main:app --host 0.0.0.0 --port 3014",
+    "test": "python3 -m pytest tests/ -v"
+  }
+}

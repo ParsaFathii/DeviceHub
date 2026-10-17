@@ -1,0 +1,77 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# testing
+coverage/
+
+# next.js
+.next/
+out/
+build/
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — NEVER commit secrets
+.env*.local
+.env.production
+
+# edge gateway local spool + runtime data
+mini-services/gateway/data/
+mini-services/*/node_modules/
+
+# logs
+dev.log
+server.log
+*.log
+tests/results/*.log
+
+# uploads & tooling artifacts
+upload/
+tool-results/
+download/
+agent-ctx/
+
+# db (dev database, not for git)
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+
+# VCS
+.svn/
+
+# Claude
+.claude/
+CLAUDE.md
+.kilocode/
+.prompts/
+.windsurf/
+.cursor/
+_IDX/
+
+# Example documents
+SPEC.md
+TODO.md
+**/archive/**
+
+# cron
+crontab
+.cron/
+
+# temp
+tmp/
+temp/
+
+# sandbox scaffold (not part of DeviceHub)
+examples/
+tests/python-runtime-*.sh
+tests/database-runtime-build.sh
+.zscripts/

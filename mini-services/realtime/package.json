@@ -1,0 +1,13 @@
+{
+  "name": "devicehub-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeviceHub realtime event service (socket.io) — Copyright © 2026 Parsa Fathi, Apache-2.0",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3"
+  }
+}

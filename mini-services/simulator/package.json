@@ -1,0 +1,13 @@
+{
+  "name": "devicehub-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeviceHub deterministic device simulator fleet — Copyright © 2026 Parsa Fathi, Apache-2.0",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
+  "dependencies": {
+    "mqtt": "^5.13.0"
+  }
+}

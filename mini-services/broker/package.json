@@ -1,0 +1,13 @@
+{
+  "name": "devicehub-broker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeviceHub MQTT broker (aedes) — internal service. Copyright © 2026 Parsa Fathi, Apache-2.0",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
+  "dependencies": {
+    "aedes": "^0.51.3"
+  }
+}

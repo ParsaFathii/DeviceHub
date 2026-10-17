@@ -1,0 +1,34 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.15, pytest-9.0.2, pluggy-1.6.0 -- /home/z/.venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.15', 'Platform': 'Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'Faker': '40.1.2', 'metadata': '3.1.1', 'asyncio': '1.3.0', 'ddtrace': '4.2.2', 'cov': '7.0.0', 'json-report': '1.5.0', 'anyio': '4.13.0'}}
+rootdir: /home/z
+configfile: pyproject.toml
+plugins: Faker-40.1.2, metadata-3.1.1, asyncio-1.3.0, ddtrace-4.2.2, cov-7.0.0, json-report-1.5.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 22 items
+
+tests/test_analytics.py::test_aggregate_bucketing_min_max_avg_count PASSED [  4%]
+tests/test_analytics.py::test_aggregate_out_of_order_counted_in_fetch_order PASSED [  9%]
+tests/test_analytics.py::test_aggregate_merges_consecutive_missing_buckets PASSED [ 13%]
+tests/test_analytics.py::test_aggregate_empty_and_invalid_interval PASSED [ 18%]
+tests/test_analytics.py::test_zscore_baseline_flags_spike PASSED         [ 22%]
+tests/test_analytics.py::test_zscore_baseline_flags_late_drift PASSED    [ 27%]
+tests/test_analytics.py::test_zscore_baseline_degenerate_series_flags_nothing PASSED [ 31%]
+tests/test_analytics.py::test_isolation_forest_flags_injected_spikes PASSED [ 36%]
+tests/test_analytics.py::test_isolation_forest_requires_min_samples PASSED [ 40%]
+tests/test_analytics.py::test_detect_series_builds_findings_for_spike PASSED [ 45%]
+tests/test_analytics.py::test_detect_series_short_series_has_no_isolation_forest PASSED [ 50%]
+tests/test_analytics.py::test_run_evaluation_full_metrics PASSED         [ 54%]
+tests/test_analytics.py::test_health_endpoint PASSED                     [ 59%]
+tests/test_analytics.py::test_model_info_endpoint PASSED                 [ 63%]
+tests/test_analytics.py::test_aggregate_endpoint_with_mocked_backend PASSED [ 68%]
+tests/test_analytics.py::test_aggregate_endpoint_backend_unavailable_returns_503 PASSED [ 72%]
+tests/test_analytics.py::test_detect_endpoint_with_mocked_backend PASSED [ 77%]
+tests/test_analytics.py::test_evaluate_endpoint_survives_backend_outage PASSED [ 81%]
+tests/test_analytics.py::test_backend_client_fetch_telemetry_sends_token_and_params PASSED [ 86%]
+tests/test_analytics.py::test_backend_client_retries_then_succeeds PASSED [ 90%]
+tests/test_analytics.py::test_backend_client_push_anomalies_and_analytics_run PASSED [ 95%]
+tests/test_analytics.py::test_parse_ts_roundtrip PASSED                  [100%]
+
+============================== 22 passed in 5.93s ==============================
