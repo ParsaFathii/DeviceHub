@@ -75,3 +75,9 @@ examples/
 tests/python-runtime-*.sh
 tests/database-runtime-build.sh
 .zscripts/
+
+# build-time generated / environment-specific
+next-env.d.ts
+Caddyfile
+skills/
+worklog.md
