@@ -1,0 +1,328 @@
+// DeviceHub — Prisma schema
+// Copyright © 2026 Parsa Fathi
+// SQLite is used in this deployment (documented adaptation from PostgreSQL for the sandbox profile).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users, roles, sessions
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  name         String
+  role         Role      @default(VIEWER)
+  passwordHash String
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+  commands     Command[] @relation("Requester")
+  auditEvents  AuditEvent[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  userAgent String?
+}
+
+// ---------------------------------------------------------------------------
+// Gateways
+// ---------------------------------------------------------------------------
+
+model Gateway {
+  id             String   @id @default(cuid())
+  gatewayId      String   @unique
+  name           String
+  version        String   @default("1.0.0")
+  state          String   @default("PROVISIONED") // PROVISIONED | ONLINE | OFFLINE | DEGRADED | ERROR | RETIRED
+  lastSeenAt     DateTime?
+  registeredAt   DateTime @default(now())
+  capabilities   String   @default("{}") // JSON: transports, bufferLimit, ...
+  metrics        String   @default("{}") // JSON: forwarded, buffered, deduped, dropped, queueDepth, uptimeSec
+  devices        Device[]
+  events         GatewayEvent[]
+  bufferRecords  BufferRecord[]
+}
+
+model GatewayEvent {
+  id          String   @id @default(cuid())
+  gatewayId   String
+  gateway     Gateway  @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+  type        String // CONNECTED | DISCONNECTED | BUFFERING | DRAINING | DRAINED | OVERFLOW | RESTARTED
+  detail      String   @default("{}") // JSON
+  createdAt   DateTime @default(now())
+
+  @@index([gatewayId, createdAt])
+}
+
+// Offline spool records — mirror of the edge gateway local buffer, used to
+// audit what the gateway believed was pending at any point in time.
+model BufferRecord {
+  id         String   @id @default(cuid())
+  gatewayId  String
+  gateway    Gateway  @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+  messageId  String
+  state      String   @default("PENDING") // PENDING | UPLOADED | LOST
+  payload    String   // JSON envelope as received from the device
+  bufferedAt DateTime @default(now())
+  uploadedAt DateTime?
+  lossReason String?
+
+  @@unique([gatewayId, messageId])
+}
+
+// ---------------------------------------------------------------------------
+// Devices
+// ---------------------------------------------------------------------------
+
+model DeviceGroup {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  devices     Device[]
+  createdAt   DateTime @default(now())
+}
+
+model Device {
+  id              String    @id @default(cuid())
+  deviceId        String    @unique // immutable logical identity (e.g. DH-ENV-001)
+  name            String
+  type            String // ENV_SENSOR | TEMP_HUM | MOTION | VOLTAGE | POWER_METER | VIBRATION | STATUS
+  origin          String    @default("SIMULATOR") // SIMULATOR | PHYSICAL | REPLAY
+  firmwareVersion String    @default("1.0.0")
+  protocolVersion Int       @default(1)
+  hardwareId      String?
+  zone            String? // logical location, e.g. "Assembly Line 1"
+  location        String?
+  state           String    @default("UNPROVISIONED") // UNPROVISIONED | PROVISIONED | ONLINE | OFFLINE | DEGRADED | MAINTENANCE | ERROR | RETIRED
+  health          Int       @default(100) // 0..100
+  capabilities    String    @default("{}") // JSON: metrics list, commands list
+  configVersion   Int       @default(1)
+  config          String    @default("{}") // JSON
+  simulator       Boolean   @default(true)
+  seed            Int       @default(0) // deterministic simulator seed
+  profile         String    @default("STABLE") // STABLE | GRADUAL_DRIFT | THRESHOLD_VIOLATION | INTERMITTENT | SENSOR_FAULT | STALE
+  groupId         String?
+  group           DeviceGroup? @relation(fields: [groupId], references: [id])
+  gatewayId       String?
+  gateway         Gateway?  @relation(fields: [gatewayId], references: [id])
+  lastSeenAt      DateTime?
+  registeredAt    DateTime  @default(now())
+  retiredAt       DateTime?
+  telemetry       TelemetrySample[]
+  commands        Command[]
+  alerts          Alert[]
+  events          DeviceEvent[]
+  anomalies       AnomalyFinding[]
+
+  @@index([state])
+  @@index([type])
+  @@index([groupId])
+}
+
+model DeviceEvent {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type      String // REGISTERED | PROVISIONED | ONLINE | OFFLINE | DEGRADED | MAINTENANCE | ERROR | RETIRED | CONFIG_UPDATED | COMMAND_SENT
+  detail    String   @default("{}") // JSON
+  createdAt DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry
+// ---------------------------------------------------------------------------
+
+model TelemetrySample {
+  id             String   @id @default(cuid())
+  schemaVersion  Int      @default(1)
+  deviceId       String
+  device         Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  gatewayId      String?
+  metric         String // temperature | humidity | motion | voltage | current | power | vibration | status
+  value          Float
+  unit           String
+  quality        String   @default("GOOD") // GOOD | SUSPECT | BAD
+  meta           String   @default("{}") // JSON: profile, sequence, flags
+  sampleTs       DateTime // source timestamp (UTC)
+  receivedTs     DateTime @default(now()) // server receipt timestamp (UTC)
+  messageId      String // stable logical id for dedup (device + sequence)
+  sequence       Int
+  delayed        Boolean  @default(false) // arrived after newer samples for same metric
+  simulated      Boolean  @default(true)
+
+  @@unique([deviceId, metric, sequence])
+  @@index([deviceId, metric, sampleTs])
+  @@index([receivedTs])
+  @@index([gatewayId])
+}
+
+// ---------------------------------------------------------------------------
+// Commands and lifecycle
+// ---------------------------------------------------------------------------
+
+model Command {
+  id            String    @id @default(cuid())
+  commandId     String    @unique
+  deviceId      String
+  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  requesterId   String?
+  requester     User?     @relation("Requester", fields: [requesterId], references: [id])
+  action        String // REBOOT | SET_CONFIG | SET_INTERVAL | ACTUATE | CLEAR_ALERTS ...
+  payload       String    @default("{}") // JSON, validated
+  state         String    @default("REQUESTED") // REQUESTED | AUTHORIZED | QUEUED | SENT | ACKNOWLEDGED | EXECUTING | SUCCEEDED | FAILED | EXPIRED | CANCELLED
+  result        String?   // JSON outcome
+  ackCode       String?   // OK | REJECTED | UNSUPPORTED | ERROR
+  ackDetail     String?
+  source        String    @default("WEB") // WEB | API | AI_PROPOSAL | AUTOMATION
+  createdAt     DateTime  @default(now())
+  authorizedAt  DateTime?
+  sentAt        DateTime?
+  ackedAt       DateTime?
+  completedAt   DateTime?
+  expiresAt     DateTime
+
+  @@index([deviceId, createdAt])
+  @@index([state])
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+model Alert {
+  id              String    @id @default(cuid())
+  alertId         String    @unique
+  deviceId        String
+  device          Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ruleId          String? // automation rule that produced it
+  severity        String // CRITICAL | WARNING | INFO
+  title           String
+  message         String
+  state           String    @default("ACTIVE") // ACTIVE | ACKNOWLEDGED | RESOLVED
+  evidence        String    @default("{}") // JSON: observed values, window, rule version
+  createdAt       DateTime  @default(now())
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  @@index([deviceId, state])
+  @@index([state, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Automation
+// ---------------------------------------------------------------------------
+
+model AutomationRule {
+  id             String    @id @default(cuid())
+  ruleId         String    @unique
+  name           String
+  enabled        Boolean   @default(true)
+  deviceSelector String    @default("{}") // JSON: {deviceId?|groupId?|type?}
+  metric         String
+  condition      String // ABOVE | BELOW
+  threshold      Float
+  durationSec    Int       @default(0) // condition must hold this long
+  severity       String    @default("WARNING") // CRITICAL | WARNING | INFO
+  action         String    @default("CREATE_ALERT") // CREATE_ALERT
+  cooldownSec    Int       @default(300)
+  priority       Int       @default(5)
+  version        Int       @default(1)
+  lastTriggeredAt DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  executions     RuleExecution[]
+
+  @@index([enabled])
+}
+
+model RuleExecution {
+  id          String    @id @default(cuid())
+  ruleId      String
+  rule        AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  deviceId    String
+  outcome     String // FIRED | SUPPRESSED_COOLDOWN | CONDITION_MET_WAITING | NOT_MET | ERROR
+  detail      String    @default("{}") // JSON: observed value, held duration, alert id
+  createdAt   DateTime  @default(now())
+
+  @@index([ruleId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorType    String // USER | GATEWAY | SYSTEM | DEVICE | AI
+  actorId      String?
+  actor        User?    @relation(fields: [actorId], references: [id])
+  action       String // e.g. DEVICE_PROVISIONED, COMMAND_REQUESTED, RULE_UPDATED, LOGIN, AI_PROPOSAL
+  resourceType String
+  resourceId   String?
+  outcome      String   @default("SUCCESS") // SUCCESS | FAILURE | DENIED
+  detail       String   @default("{}") // JSON, sanitized (never secrets)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([resourceType, resourceId])
+}
+
+// ---------------------------------------------------------------------------
+// Analytics / anomaly detection
+// ---------------------------------------------------------------------------
+
+model AnomalyFinding {
+  id           String    @id @default(cuid())
+  deviceId     String
+  device       Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  metric       String
+  windowStart  DateTime
+  windowEnd    DateTime
+  score        Float // model-specific anomaly score (NOT a calibrated probability)
+  model        String // isolation_forest | zscore_baseline
+  modelVersion String
+  detectedAt   DateTime  @default(now())
+  baselineScore Float? // comparison from deterministic baseline
+  details      String    @default("{}") // JSON: sample stats, flags
+
+  @@index([deviceId, metric, detectedAt])
+  @@index([model])
+}
+
+model AnalyticsRun {
+  id          String   @id @default(cuid())
+  kind        String // DETECT | EVALUATE | AGGREGATE
+  model       String?
+  status      String   @default("RUNNING") // RUNNING | COMPLETED | FAILED
+  detail      String   @default("{}") // JSON: config, results
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+}
