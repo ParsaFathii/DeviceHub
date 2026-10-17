@@ -1,0 +1,42 @@
+════════════════════════════════════════════════════════════════
+ DeviceHub Reliability Test Suite (PASS 2 — Failure Injection)
+════════════════════════════════════════════════════════════════
+── R1: duplicate MQTT delivery dedup ──
+  ✔ duplicate delivery detected & dropped at gateway (+1 deduped)
+── R2: delayed telemetry preservation ──
+  ✔ delayed sample accepted, not discarded (+2 samples)
+  ✔ delayed sample flagged delayed=true
+── R3: backend outage → durable buffering → automatic drain ──
+  ✔ backend outage injected (30s)
+  ✔ telemetry buffered locally during outage (36 records spooled)
+  ✔ gateway reports BUFFERING state
+  … waiting for outage to end and spool to drain…
+  ✔ spool fully drained after reconnection (0 pending)
+  ✔ buffered records uploaded with timestamps preserved (133 total)
+  ✔ DRAINED lifecycle event recorded
+  ✔ platform still ingesting after recovery (30094 samples/24h)
+── R4: gateway restart with pending spool (durable SQLite) ──
+  … 28 records pending — killing gateway process…
+  ✔ gateway process located (pid 18375)
+  ✔ spool survives hard kill on disk (28 records in SQLite)
+  … restarting gateway…
+  … pending after restart+drain: 0 (was 28 at kill)
+  ✔ gateway restart drains persisted spool on boot (0 pending)
+  ✔ gateway healthy after restart
+── R5: malformed input rejection ──
+  ✔ malformed messages rejected at gateway (+4 rejected)
+  ✔ oversized batch rejected by backend (413)
+── R6: device offline timeout & recovery ──
+  … DH-MOT-002 silenced (no telemetry, no heartbeats) — waiting ~50s for gateway timeout…
+  ✔ silent device transitions to OFFLINE after timeout
+  ✔ resumed device returns ONLINE on telemetry
+── R7: MQTT broker restart ──
+  ✔ broker process located (pid 18608)
+  ✔ gateway detects broker outage
+  ✔ gateway reconnects after broker restart
+  ✔ simulator fleet reconnected to broker
+  ✔ telemetry flowing again after full recovery (262 → 279)
+════════════════════════════════════════════════════════════════
+ RESULT: 23 passed, 0 failed
+════════════════════════════════════════════════════════════════
+EXIT:0

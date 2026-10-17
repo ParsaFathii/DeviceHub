@@ -1,0 +1,79 @@
+# DeviceHub Dependabot configuration
+# Copyright © 2026 Parsa Fathi — Apache-2.0
+
+version: 2
+updates:
+  # Root web application (bun.lock — npm ecosystem)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "web"
+
+  # Edge services (each has its own bun.lock)
+  - package-ecosystem: "npm"
+    directory: "/mini-services/broker"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-broker)"
+    labels:
+      - "dependencies"
+      - "edge"
+
+  - package-ecosystem: "npm"
+    directory: "/mini-services/simulator"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-simulator)"
+    labels:
+      - "dependencies"
+      - "edge"
+
+  - package-ecosystem: "npm"
+    directory: "/mini-services/gateway"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-gateway)"
+    labels:
+      - "dependencies"
+      - "edge"
+
+  - package-ecosystem: "npm"
+    directory: "/mini-services/realtime"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-realtime)"
+    labels:
+      - "dependencies"
+      - "edge"
+
+  # Python analytics service
+  - package-ecosystem: "pip"
+    directory: "/mini-services/analytics"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-analytics)"
+    labels:
+      - "dependencies"
+      - "analytics"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"

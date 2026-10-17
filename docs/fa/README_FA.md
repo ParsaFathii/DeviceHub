@@ -1,0 +1,116 @@
+# DeviceHub — مستندات فارسی
+
+پلتفرم مدیریت دستگاه‌های IoT، گیت‌وی لبه (edge gateway)، تحلیل تله‌متری، تشخیص ناهنجاری و دستیار عیب‌یابی هوش مصنوعی — به‌صورت سرتاسری ساخته و آزمایش‌شده در همین مخزن.
+
+حق نشر © ۲۰۲۶ پارسا فتحی — مجوز Apache-2.0. متن کامل مجوز: [LICENSE](../../LICENSE) و attributions: [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
+
+**مستندات انگلیسی:** [README.md](../../README.md)
+
+فهرست مستندات فارسی:
+
+| سند | موضوع |
+|---|---|
+| [INSTALLATION_FA.md](INSTALLATION_FA.md) | نصب و راه‌اندازی گام‌به‌گام |
+| [USER_GUIDE_FA.md](USER_GUIDE_FA.md) | راهنمای کاربری — ۱۱ نما و سناریوهای نمایشی |
+| [ARCHITECTURE_FA.md](ARCHITECTURE_FA.md) | معماری و جریان داده |
+| [DEVICE_PROTOCOL_FA.md](DEVICE_PROTOCOL_FA.md) | پروتکل DeviceHub نسخه ۱ (پاکت JSON و فریم باینری) |
+| [MQTT_FA.md](MQTT_FA.md) | تاپیک‌ها، QoS، پیام‌های retained و رفتار نشست |
+| [EDGE_GATEWAY_FA.md](EDGE_GATEWAY_FA.md) | گیت‌وی لبه: اعتبارسنجی، dedup، بافر آفلاین و drain |
+| [TELEMETRY_FA.md](TELEMETRY_FA.md) | شِمای داده تله‌متری (زمان‌های دوگانه، تأخیر، dedup) |
+| [AUTOMATION_FA.md](AUTOMATION_FA.md) | موتور اتوماسیون و معناشناسی قواعد |
+| [MACHINE_LEARNING_FA.md](MACHINE_LEARNING_FA.md) | تشخیص ناهنجاری + اعداد واقعی ارزیابی |
+| [LOCAL_AI_FA.md](LOCAL_AI_FA.md) | لایه هوش مصنوعی و مرز ایمنی آن |
+| [SECURITY_FA.md](SECURITY_FA.md) | مدل امنیتی، نقش‌ها، توکن داخلی |
+| [API_FA.md](API_FA.md) | جدول endpoint‌ها (عمومی و داخلی) |
+| [DEVELOPMENT_FA.md](DEVELOPMENT_FA.md) | راهنمای توسعه‌دهندگان |
+| [RELEASE_FA.md](RELEASE_FA.md) | یادداشت‌های انتشار |
+| [COPYRIGHT_FA.md](COPYRIGHT_FA.md) | حق نشر و مجوز |
+
+---
+
+## DeviceHub چه کاری انجام می‌دهد؟
+
+DeviceHub یک پلتفرم IoT مستقل است که مسیر کامل داده از لبه تا مرکز را پیاده‌سازی کرده است:
+
+- **دستگاه‌ها** تله‌متری و وضعیت خود را روی یک **MQTT broker واقعی** (با QoS 1) منتشر می‌کنند.
+- یک سرویس **گیت‌وی لبه** هر پیام را با پروتکل DeviceHub نسخه ۱ اعتبارسنجی می‌کند، تحویل‌های تکراری را dedup می‌کند، در زمان قطع Backend داده‌ها را در **بافر پایدار SQLite** نگه می‌دارد (که از `kill -9` هم جان سالم به در می‌برد)، **قواعد اتوماسیون قطعی** را در لبه اجرا می‌کند، فرمان‌ها را مسیریابی می‌کند و همه‌چیز را به Backend می‌فرستد.
+- **Backend اپلیکیشن Next.js** داده‌ها را در یک پایگاه‌داده رابطه‌ای ذخیره می‌کند (در این استقرار: SQLite با Prisma)، **کنترل دسترسی مبتنی بر نقش** را سمت سرور اعمال می‌کند و یک REST API ارائه می‌دهد.
+- یک سرویس **تحلیل Python با FastAPI** تشخیص ناهنجاری را اجرا می‌کند (IsolationForest در کنار یک baseline قطعی z-score) و روی یک دیتاست برچسب‌دار ارزیابی شده است.
+- یک سرویس **realtime با socket.io** رخدادها را به کلاینت وب می‌رساند.
+- یک **دستیار عیب‌یابی هوش مصنوعی** به سؤالات عملیاتی صرفاً بر اساس داده‌های ثبت‌شده پاسخ می‌دهد و فقط جنبه مشورتی دارد — امکان اجرای فرمان ندارد.
+
+در این استقرار، همه دستگاه‌ها **شبیه‌سازی‌شده** هستند (۱۶ دستگاه seed-شده و قطعی در ۶ پروفایل رفتاری). داده‌های شبیه‌ساز همه‌جا صریحاً برچسب «simulator» دارند. محدودیت‌ها را صادقانه مستند کرده‌ایم — بخش «محدودیت‌های مستندشده» در [README انگلیسی](../../README.md).
+
+مسیر داده واقعی است و زیر تزریق خطا آزمایش شده: قطعی Backend، `kill -9` کردن گیت‌وی در حالی که بافر پُر بود، تحویل تکراری MQTT، تله‌متری تأخیری، پیام‌های خراب، ری‌استارت broker و سکوت دستگاه. جزئیات در [README انگلیسی، بخش Testing](../../README.md#testing).
+
+## نمای کلی معماری
+
+```
+ ┌───────────────┐     ┌─────────────┐   ┌────────────────────┐   ┌─────────────┐
+ │ ۱۶ دستگاه     │     │   broker    │   │    گیت‌وی لبه       │   │  Next.js    │
+ │ شبیه‌سازی‌شده  │────►│   MQTT      │──►│  (TypeScript)      │──►│  backend    │
+ │ (قطعی، ۶      │     │  :1883      │   │  · اعتبارسنجی v1   │   │  · REST API │
+ │  پروفایل)     │     │  QoS 1      │   │  · dedup پیام      │   │  · Prisma + │
+ └───────────────┘     └─────────────┘   │  · بافر پایدار     │   │    SQLite   │
+        ▲                                │    SQLite (۵۰۰۰)   │   │  · نقش‌ها و  │
+        │ فرمان‌ها                         │  · drain خودکار    │   │    نشست‌ها   │
+        ▼                                │  · تایم‌اوت ۴۵s     │   └──────┬──────┘
+ ┌───────────────┐     ┌──────────────┐  │    برای OFFLINE    │          │
+ │ گیت‌وی لبه:   │◄────│ وضعیت گیت‌وی │  │  · اتوماسیون در لبه│   ┌──────▼──────┐
+ │ مسیریابی + ack│     │ (retained)   │  └────────┬───────────┘   │ کلاینت وب   │
+ └───────────────┘     └──────────────┘           │               │ ۱۱ نما +    │
+                                                ack فرمان‌ها       │ socket.io   │
+                                                 و چرخه حیات       └──────▲──────┘
+                                              ┌────────────────┐          │
+                                              │ FastAPI Python │◄─────────┘
+                                              │ :3014 — تحلیل  │  (APIهای داخلی،
+                                              │ + ML           │   X-Internal-Token)
+                                              └────────────────┘
+```
+
+## شروع سریع (خلاصه)
+
+```bash
+bun install
+echo 'DATABASE_URL=file:/home/z/my-project/db/custom.db' > .env
+bunx prisma db push
+bun prisma/seed.ts
+bun run dev                          # وب و API روی :3000
+
+cd mini-services/broker && bun install && bun run dev      # :1883
+cd mini-services/simulator && bun install && bun run dev   # :3012
+cd mini-services/gateway && bun install && bun run dev     # :3011
+cd mini-services/realtime && bun install && bun run dev    # :3013
+cd mini-services/analytics && python3 -m pip install -r requirements.txt && bun run dev   # :3014
+```
+
+ترتیب اجرا مهم است: اول broker، بعد شبیه‌ساز، بعد گیت‌وی، بعد وب و بقیه. راهنمای کامل: [INSTALLATION_FA.md](INSTALLATION_FA.md).
+
+حساب‌های نمایشی: `admin/admin123` (ADMIN)، `operator/operator123` (OPERATOR)، `viewer/viewer123` (VIEWER).
+
+## نتایج واقعی تست‌ها (در همین محیط)
+
+| مجموعه تست | دستور | نتیجه |
+|---|---|---|
+| کارکردی | `bash tests/api.test.sh` | **۴۵/۴۵ قبول** |
+| امنیت و ایمنی AI | `bash tests/security.test.sh` | **۳۷/۳۷ قبول** |
+| قابلیت اطمینان (تزریق خطا) | `bash tests/failure.test.sh` (حدود ۳ دقیقه) | همه سناریوها سبز |
+| کتابخانه C | `cd protocol-c && make test` | ۲۶ تست / ۵۱۹ assertion — قبول (و ASan پاک) |
+| تحلیل Python | `python3 -m pytest mini-services/analytics/tests -v` | ۲۲/۲۲ قبول |
+
+## محدودیت‌های مستندشده (صادقانه)
+
+این محدودیت‌ها مربوط به **همین محیط ساخت** هستند، نه ادعایی درباره طراحی پلتفرم:
+
+- به‌جای PostgreSQL از **SQLite** (با Prisma) استفاده شده است.
+- **گیت‌وی لبه با TypeScript پیاده شده** — گیت‌وی C++ سند معماری به همین مؤلفه نگاشت می‌شود (همان مسئولیت‌ها).
+- **کلاینت موبایل (Flutter/Kotlin) و Backend با Spring Boot ساخته نشده‌اند** و **Docker** در این محیط اجرا و آزمایش نشده است.
+- **آزمایش روی سخت‌افزار فیزیکی انجام نشده** — کتابخانه پروتکل C واقعی و تست‌شده است (gcc 14.2) ولی با سخت‌افزار واقعی اجرا نشده.
+- همه داده‌های ناوگان، داده شبیه‌ساز هستند و همه‌جا برچسب دارند.
+- broker توسعه بدون TLS است — الزامات محیط عملیاتی در [SECURITY_FA.md](SECURITY_FA.md).
+- هیچ ممیزی امنیتی شخص ثالثی انجام نشده؛ مجموعه ۳۷تایی امنیت یک self-test است، نه گواهی.
+
+## مجوز
+
+Apache License 2.0 — حق نشر © ۲۰۲۶ پارسا فتحی. متن کامل در [LICENSE](../../LICENSE).
+مالک: [پارسا فتحی](https://github.com/ParsaFathii) · مخزن: [ParsaFathii/DeviceHub](https://github.com/ParsaFathii/DeviceHub)

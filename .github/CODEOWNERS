@@ -1,0 +1,39 @@
+# DeviceHub CODEOWNERS
+# Copyright © 2026 Parsa Fathi — Apache-2.0
+# Owners are requested (not required) reviewers for changes in these areas.
+
+# Default owner for everything
+* @ParsaFathii
+
+# Web application & public API
+/src/app/            @ParsaFathii
+/src/components/     @ParsaFathii
+/src/lib/            @ParsaFathii
+/src/hooks/          @ParsaFathii
+
+# Data layer
+/prisma/             @ParsaFathii
+
+# Edge services
+/mini-services/broker/     @ParsaFathii
+/mini-services/simulator/  @ParsaFathii
+/mini-services/gateway/    @ParsaFathii
+/mini-services/realtime/   @ParsaFathii
+/mini-services/analytics/  @ParsaFathii
+
+# C protocol library
+/protocol-c/         @ParsaFathii
+
+# Test suites (live platform)
+/tests/              @ParsaFathii
+
+# Documentation
+/README.md           @ParsaFathii
+/ARCHITECTURE.md     @ParsaFathii
+/SECURITY.md         @ParsaFathii
+/CONTRIBUTING.md     @ParsaFathii
+/CHANGELOG.md        @ParsaFathii
+/docs/               @ParsaFathii
+
+# CI & repo meta
+/.github/            @ParsaFathii

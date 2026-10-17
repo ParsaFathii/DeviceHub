@@ -1,0 +1,63 @@
+════════════════════════════════════════════════════════════════
+ DeviceHub Functional Test Suite (PASS 1 — Functional)
+════════════════════════════════════════════════════════════════
+── Authentication ──
+  ✔ unauthenticated /api/overview rejected (401)
+  ✔ wrong password rejected (401)
+  ✔ admin login returns ADMIN role
+  ✔ viewer session restored via cookie
+── Fleet & Devices ──
+  ✔ overview reports ≥15 devices (16)
+  ✔ overview reports live sample volume (25889/24h)
+  ✔ data origin discloses simulator fleet (16/16)
+  ✔ overview includes zone health (6 zones)
+  ✔ device list returns fleet (16)
+  ✔ device list carries live temperature column
+  ✔ device detail includes firmware identity (1.4.2)
+  ✔ device detail includes telemetry series (3 metrics)
+  ✔ device detail labels data origin (SIMULATOR)
+  ✔ unknown device detail returns 404
+── Telemetry ──
+  ✔ telemetry query returns samples (795)
+  ✔ aggregation engine reported (python-analytics (60s buckets))
+  ✔ aggregated buckets computed (61)
+── Command lifecycle ──
+  ✔ VIEWER cannot send commands (403)
+  ✔ unsupported action rejected against capabilities (422)
+  ✔ out-of-range command payload rejected (422)
+  ✔ SELF_TEST command accepted & dispatched (CMD-D9E89D84 → QUEUED)
+  ✔ command reaches SUCCEEDED via real device ack (SUCCEEDED/OK)
+  ✔ SET_INTERVAL executed by simulator (SUCCEEDED)
+── Alerts ──
+  ✔ automation produced critical alerts (10 active)
+  ✔ alerts carry deterministic rule evidence (threshold=85)
+  ✔ alert acknowledged by operator (AL-3F07F94F)
+  ✔ double-ack rejected (409)
+  ✔ VIEWER cannot resolve alerts (403)
+── Automation rules ──
+  ✔ seeded rules listed (10)
+  ✔ rule execution history shows FIRED events (16)
+  ✔ operator can create rule (rule-c7553d)
+  ✔ semantic edit increments rule version (v2)
+  (test rule rule-c7553d disabled — cleanup)
+── Audit trail ──
+  ✔ audit records COMMAND_REQUESTED
+  ✔ audit records ALERT_ACKNOWLEDGED
+  ✔ audit records LOGIN events
+── Services & Analytics ──
+  ✔ all platform services healthy (db/gw/ana/sim/mqtt)
+  ✔ anomaly detection produced findings (IF:158, baseline:27)
+  ✔ ML evaluation returns valid metrics (IF F1=0.2201, baseline F1=0.1274)
+  ✔ evaluation dataset is substantial (1179 labeled samples)
+  ✔ anomaly findings persisted & listed (50)
+── AI diagnostics (evidence-grounded) ──
+  ✔ AI answer grounded in recorded evidence (16 devices)
+  ✔ AI identifies DH-ENV-003 as hottest device from evidence
+  ✔ AI provider real status reported (available)
+── Edge gateway ──
+  ✔ gateway is actively forwarding telemetry (+16 in 8s, total 742)
+  ✔ gateway MQTT session connected
+  ✔ simulator fleet running (16 devices)
+════════════════════════════════════════════════════════════════
+ RESULT: 46 passed, 0 failed
+════════════════════════════════════════════════════════════════

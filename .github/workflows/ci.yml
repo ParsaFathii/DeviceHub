@@ -1,0 +1,106 @@
+# DeviceHub CI
+# Copyright © 2026 Parsa Fathi — Apache-2.0
+#
+# What CI CAN verify here:
+#   - protocol-c:  C11 library builds and passes its 26-test / 519-assertion suite
+#   - analytics:   Python unit tests (backend interactions are mocked — no network)
+#   - web:         dependency install + eslint (`bun run lint`)
+#   - tests-shell: syntax check of the three live-platform shell suites
+#
+# What CI CANNOT verify here (honest limitation):
+#   tests/api.test.sh, tests/security.test.sh and tests/failure.test.sh exercise
+#   the LIVE platform — they need the MQTT broker, device simulator, edge gateway,
+#   realtime, analytics and web services all running and talking to each other,
+#   plus a seeded database. That is not reproducible in this workflow, so they are
+#   NOT run in CI. Contributors run them locally against a running instance
+#   (see CONTRIBUTING.md — test-before-merge policy). We still syntax-check them
+#   (bash -n) so a broken script never reaches a maintainer's machine.
+#
+# `bun run build` is intentionally not run: the Next.js production build needs a
+# database env/runtime present; lint-only keeps CI honest about what it verifies.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-c:
+    name: C protocol library
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test (make test)
+        working-directory: protocol-c
+        run: |
+          make test
+
+      - name: Test with sanitizers (ASan + UBSan)
+        working-directory: protocol-c
+        run: |
+          make clean
+          make test-asan
+
+  analytics:
+    name: Python analytics (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r mini-services/analytics/requirements.txt
+          pip install pytest
+
+      - name: Run pytest
+        run: |
+          python -m pytest mini-services/analytics/tests -v
+
+  web:
+    name: Web lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # Lint only — see file header note about why `bun run build` is not run.
+      - name: Lint
+        run: bun run lint
+
+  tests-shell:
+    name: Live test suites (syntax check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # bash -n parses without executing — the suites themselves need the live
+      # platform (broker :1883, simulator :3012, gateway :3011, realtime :3013,
+      # analytics :3014, web :3000) and are run locally before merge instead.
+      - name: Syntax-check shell test suites
+        run: |
+          bash -n tests/api.test.sh
+          bash -n tests/security.test.sh
+          bash -n tests/failure.test.sh
+          echo "All three live-platform suites parse cleanly."
