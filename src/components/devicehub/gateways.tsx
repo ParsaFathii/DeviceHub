@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, stateColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, stateColor, rgba, fmtInt } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Cpu, Activity, Database, ArrowUpDown, Zap, Loader2, ServerCog } from "lucide-react";
@@ -75,31 +75,31 @@ export function GatewaysView() {
               <StatCard
                 icon={<Cpu className="h-5 w-5" />}
                 label="Gateway"
-                value={g.name.split("(")[0].trim()}
-                trend={`${g.gatewayId} · v${g.version}`}
-                trendUp
+                value={g.gatewayId}
+                trend={`${g.name.split("(")[0].trim()} · v${g.version}`}
+                trendNeutral
               />
               <StatCard
                 icon={<Activity className="h-5 w-5" />}
                 label="State"
                 value={live?.mqttConnected ? (live.offlineMode ? "BUFFERING" : "ONLINE") : g.state}
                 trend={`up ${Math.floor((live?.uptimeSec || 0) / 60)}m ${(live?.uptimeSec || 0) % 60}s`}
-                trendUp
+                trendNeutral
                 iconColor={live?.mqttConnected ? DH.success : DH.danger}
               />
               <StatCard
                 icon={<ArrowUpDown className="h-5 w-5" />}
                 label="Forwarded / Deduped"
-                value={`${metrics.forwarded ?? 0} / ${metrics.deduped ?? 0}`}
+                value={`${fmtInt(metrics.forwarded ?? 0)} / ${fmtInt(metrics.deduped ?? 0)}`}
                 trend={`rejected ${metrics.rejected ?? 0}`}
-                trendUp
+                trendNeutral
                 iconColor={DH.cyan}
               />
               <StatCard
                 icon={<Database className="h-5 w-5" />}
                 label="Spool Pending"
-                value={buffer?.pending ?? metrics.pendingSpool ?? 0}
-                trend={`drained total ${metrics.uploadedFromBuffer ?? 0}`}
+                value={fmtInt(buffer?.pending ?? metrics.pendingSpool ?? 0)}
+                trend={`drained total ${fmtInt(metrics.uploadedFromBuffer ?? 0)}`}
                 trendUp={!(buffer?.pending)}
                 iconColor={(buffer?.pending ?? 0) > 0 ? DH.warning : DH.success}
               />
@@ -107,10 +107,13 @@ export function GatewaysView() {
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
               {/* Gateway detail card */}
-              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-                <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.border }}>
-                  <h3 className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
-                    <ServerCog className="h-4 w-4" style={{ color: DH.accent }} /> Edge Gateway Status
+              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+                  <h3 className="flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.accent, 0.12), border: `1px solid ${rgba(DH.accent, 0.2)}`, color: DH.accent }}>
+                      <ServerCog className="h-4 w-4" />
+                    </span>
+                    Edge Gateway Status
                   </h3>
                   <StatusPill label={live?.mqttConnected ? (live.offlineMode ? "BUFFERING" : "ONLINE") : g.state} />
                 </div>
@@ -118,10 +121,10 @@ export function GatewaysView() {
                   <Row label="MQTT session" value={live?.mqttConnected ? "connected (persistent, clean=false)" : "disconnected — reconnecting"} ok={live?.mqttConnected} />
                   <Row label="Backend link" value={live?.backendHealthy ? "healthy" : "unavailable — buffering"} ok={live?.backendHealthy} />
                   <Row label="Devices tracked" value={String(live?.devices?.length ?? "—")} ok />
-                  <Row label="Queue depth" value={String(metrics.queueDepth ?? 0)} ok />
-                  <Row label="Alerts fired (edge rules)" value={String(metrics.alertsFired ?? 0)} ok />
-                  <Row label="Commands routed" value={String(metrics.commandsRouted ?? 0)} ok />
-                  <Row label="Dropped / lost" value={String(metrics.dropped ?? 0)} ok={!(metrics.dropped)} />
+                  <Row label="Queue depth" value={fmtInt(metrics.queueDepth ?? 0)} ok />
+                  <Row label="Alerts fired (edge rules)" value={fmtInt(metrics.alertsFired ?? 0)} ok />
+                  <Row label="Commands routed" value={fmtInt(metrics.commandsRouted ?? 0)} ok />
+                  <Row label="Dropped / lost" value={fmtInt(metrics.dropped ?? 0)} ok={!(metrics.dropped)} />
                   <Row label="Last forwarded" value={metrics.lastForwardedAt ? timeAgo(new Date(Number(metrics.lastForwardedAt)).toISOString()) : "—"} ok />
                   <Row label="Last drain" value={metrics.lastDrainAt ? timeAgo(new Date(Number(metrics.lastDrainAt)).toISOString()) : "—"} ok />
                   <Row label="Spool limit" value={`${buffer?.limit ?? 5000} records (durable SQLite, WAL)`} ok />
@@ -156,8 +159,8 @@ export function GatewaysView() {
               </div>
 
               {/* Buffer records */}
-              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-                <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
+              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
                   <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
                     Offline Buffer {buffer?.pending ? `(${buffer.pending} pending)` : "(empty)"}
                   </h3>
@@ -167,14 +170,14 @@ export function GatewaysView() {
                     <EmptyState title="Spool is empty" subtitle="All received telemetry has been delivered to the backend" />
                   ) : (
                     buffer.records.map((r: any) => (
-                      <div key={r.msgId} className="mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+                      <div key={r.msgId} className="mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                         <div className="min-w-0">
                           <div className="truncate font-mono text-[11px]" style={{ color: DH.textPrimary }}>{r.msgId}</div>
                           <div className="text-[9.5px]" style={{ color: DH.textSecondary }}>{r.topic}</div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="text-[10px]" style={{ color: DH.warning }}>buffered {timeAgo(r.bufferedAt)}</div>
-                          <div className="text-[9.5px]" style={{ color: DH.textSecondary }}>tries {r.tries}</div>
+                          <div className="text-[10px] tabular-nums" style={{ color: DH.warning }}>buffered {timeAgo(r.bufferedAt)}</div>
+                          <div className="text-[9.5px] tabular-nums" style={{ color: DH.textSecondary }}>tries {r.tries}</div>
                         </div>
                       </div>
                     ))
@@ -183,20 +186,20 @@ export function GatewaysView() {
               </div>
 
               {/* Gateway events */}
-              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-                <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
+              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
                   <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Lifecycle Events</h3>
                 </div>
                 <div className="max-h-[360px] overflow-y-auto p-3">
                   {(!detail?.events || detail.events.length === 0) && <EmptyState title="No gateway events yet" />}
                   {detail?.events?.map((e: any, idx: number) => (
                     <div key={idx} className="mb-1.5 flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-slate-700/25">
-                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: stateColor(e.type) }} />
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: stateColor(e.type), boxShadow: `0 0 6px ${rgba(stateColor(e.type), 0.7)}` }} />
                       <div className="min-w-0 flex-1">
                         <div className="text-[12px] font-medium" style={{ color: DH.textPrimary }}>{e.type}</div>
                         <div className="truncate text-[10px]" style={{ color: DH.textSecondary }}>{JSON.stringify(e.detail).slice(0, 70)}</div>
                       </div>
-                      <span className="shrink-0 text-[10px]" style={{ color: DH.textSecondary }}>{timeAgo(e.createdAt)}</span>
+                      <span className="shrink-0 text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>{timeAgo(e.createdAt)}</span>
                     </div>
                   ))}
                 </div>
@@ -205,13 +208,13 @@ export function GatewaysView() {
 
             {/* devices on this gateway */}
             {live?.devices && (
-              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-                <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
+              <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
                   <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Device Sessions ({live.devices.length})</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                   {live.devices.map((d: any) => (
-                    <div key={d.deviceId} className="flex items-center justify-between rounded-lg border px-2.5 py-2" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+                    <div key={d.deviceId} className="flex items-center justify-between rounded-lg border px-2.5 py-2" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                       <span className="font-mono text-[10.5px]" style={{ color: DH.textPrimary }}>{d.deviceId}</span>
                       <StatusPill label={d.state} />
                     </div>
@@ -228,9 +231,9 @@ export function GatewaysView() {
 
 function Row({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b pb-2 last:border-0" style={{ borderColor: `${DH.border}66` }}>
+    <div className="flex items-center justify-between gap-3 border-b pb-2 last:border-0" style={{ borderColor: DH.borderFaint }}>
       <span className="text-[11.5px]" style={{ color: DH.textSecondary }}>{label}</span>
-      <span className="text-right text-[11.5px] font-medium" style={{ color: ok === undefined ? DH.textPrimary : ok ? DH.success : DH.warning }}>{value}</span>
+      <span className="text-right text-[11.5px] font-medium tabular-nums" style={{ color: ok === undefined ? DH.textPrimary : ok ? DH.success : DH.warning }}>{value}</span>
     </div>
   );
 }

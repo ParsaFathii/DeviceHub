@@ -34,6 +34,25 @@ model User {
   sessions     Session[]
   commands     Command[] @relation("Requester")
   auditEvents  AuditEvent[]
+  aiInteractions AiInteraction[]
+}
+
+// AI assistant conversation turns (persisted multi-turn diagnostics sessions).
+// Evidence JSON on assistant turns is a sanitized summary — never credentials.
+model AiInteraction {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   // "user" | "assistant"
+  content   String
+  evidence  String   @default("{}") // JSON evidence summary for assistant turns
+  model     String?
+  latencyMs Int?
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Session {

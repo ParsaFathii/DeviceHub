@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 # DeviceHub — Test capture: AI DIAGNOSTICS (GIF)
-# Records: evidence-grounded question → answer with labeled facts + evidence
-# summary footer (advisory-only assistant).
+# Records: streaming answer with labeled token chips (measured fact / rule
+# result / ML output / hypothesis / recommendation), latency + evidence footer,
+# multi-turn follow-up question, and the conversations history drawer.
 # Copyright © 2026 Parsa Fathi — Apache-2.0
 # Usage: bash tests/gifs/capture-ai-diagnostics.sh
 # =============================================================================
@@ -24,23 +25,32 @@ fi
 
 agent-browser find role button click --name "AI Diagnostics" > /dev/null
 sleep 3
-agent-browser screenshot "$DIR/frame_000.png" > /dev/null
+agent-browser screenshot "$DIR/frame_000.png" > /dev/null   # KPI row + safety banner + empty chat
 
-# click a suggested question
-agent-browser find role button click --name "Explain the temperature anomaly on DH-ENV-003" > /dev/null
-sleep 1
-agent-browser screenshot "$DIR/frame_001.png" > /dev/null
+# fire the "Explain worst anomaly" quick action — answer streams with token chips
+agent-browser find role button click --name "Explain worst anomaly" > /dev/null
+sleep 2
+agent-browser screenshot "$DIR/frame_001.png" > /dev/null   # streaming starts (caret visible)
+sleep 4
+agent-browser screenshot "$DIR/frame_002.png" > /dev/null   # answer keeps streaming
+sleep 6
+agent-browser screenshot "$DIR/frame_003.png" > /dev/null   # complete answer w/ labeled chips + latency
 
-# ask
-agent-browser find role button click --name "Ask" > /dev/null
-sleep 3
-agent-browser screenshot "$DIR/frame_002.png" > /dev/null
+# multi-turn follow-up (proves session memory across turns)
+agent-browser find role textbox click --name "Ask about devices, alerts, anomalies, telemetry" > /dev/null 2>&1 || true
+agent-browser eval "var tas=document.querySelectorAll('textarea'); tas[tas.length-1].focus()" > /dev/null 2>&1 || true
+agent-browser type " " "Which of those devices should an operator check first, and what command could help?" > /dev/null 2>&1 || \
+  agent-browser find role textbox fill --name "Ask about devices, alerts, anomalies, telemetry" "Which of those devices should an operator check first, and what command could help?" > /dev/null 2>&1 || true
+agent-browser press Enter > /dev/null
+sleep 4
+agent-browser screenshot "$DIR/frame_004.png" > /dev/null   # follow-up uses conversation context
+sleep 6
+agent-browser screenshot "$DIR/frame_005.png" > /dev/null
 
-# wait for the evidence-grounded answer to stream in
-for i in 3 4 5 6; do
-  sleep 5
-  agent-browser screenshot "$DIR/$(printf 'frame_%03d.png' $i)" > /dev/null
-done
+# open the history drawer (persisted conversations)
+agent-browser find role button click --name "History" > /dev/null 2>&1 || true
+sleep 2
+agent-browser screenshot "$DIR/frame_006.png" > /dev/null
 
 ffmpeg -y -loglevel error -framerate 0.9 -i "$DIR/frame_%03d.png" \
   -vf "scale=1100:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=120[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3" \

@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, stateColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, stateColor, rgba, fmtInt } from "./shared";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Terminal, CheckCircle2, XCircle, Clock, FileText, ChevronRight } from "lucide-react";
 
@@ -43,10 +43,10 @@ export function CommandsAuditView() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Terminal className="h-5 w-5" />} label="Total Commands" value={commands.length} trend="audited lifecycle" trendUp />
+        <StatCard icon={<Terminal className="h-5 w-5" />} label="Total Commands" value={commands.length} trend="audited lifecycle" trendNeutral />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} label="Succeeded" value={succeeded} trend="device-acknowledged" trendUp iconColor={DH.success} />
         <StatCard icon={<XCircle className="h-5 w-5" />} label="Failed / Expired" value={failed} trend="real device outcomes" trendUp={false} iconColor={DH.danger} />
-        <StatCard icon={<FileText className="h-5 w-5" />} label="Audit Events" value={auditData?.events?.length ?? 0} trend="actor · action · outcome" trendUp iconColor={DH.cyan} />
+        <StatCard icon={<FileText className="h-5 w-5" />} label="Audit Events" value={auditData?.events?.length ?? 0} trend="actor · action · outcome" trendNeutral iconColor={DH.cyan} />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -57,9 +57,9 @@ export function CommandsAuditView() {
       </Tabs>
 
       {tab === "commands" ? (
-        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-          <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
-            <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Commands ({commands.length})</h3>
+        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+            <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Commands ({fmtInt(commands.length)})</h3>
             <p className="mt-0.5 text-[11px]" style={{ color: DH.textSecondary }}>
               Request accepted ≠ delivered ≠ acknowledged ≠ completed — the stepper shows the real progress of each command.
             </p>
@@ -70,16 +70,16 @@ export function CommandsAuditView() {
               const stepIdx = LIFECYCLE.indexOf(c.state);
               const terminalFail = TERMINAL.includes(c.state);
               return (
-                <div key={c.commandId} className="rounded-xl border p-4" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+                <div key={c.commandId} className="rounded-xl border p-4" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-[11px] rounded px-1.5 py-0.5" style={{ color: DH.accent, backgroundColor: `${DH.accent}14` }}>{c.commandId}</span>
+                      <span className="rounded-full px-2 py-0.5 font-mono text-[11px]" style={{ color: DH.accent, backgroundColor: rgba(DH.accent, 0.10), border: `1px solid ${rgba(DH.accent, 0.2)}` }}>{c.commandId}</span>
                       <span className="text-[13px] font-semibold" style={{ color: DH.textPrimary }}>{c.action}</span>
                       <span className="text-[11.5px]" style={{ color: DH.textSecondary }}>→ {c.deviceName} <span className="font-mono">({c.deviceId})</span></span>
                     </div>
                     <div className="flex items-center gap-2">
                       {c.source === "AI_PROPOSAL" && (
-                        <span className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold" style={{ color: DH.purple, backgroundColor: `${DH.purple}14` }}>AI PROPOSAL</span>
+                        <span className="rounded-full px-2 py-0.5 text-[9.5px] font-semibold" style={{ color: DH.purple, backgroundColor: rgba(DH.purple, 0.10), border: `1px solid ${rgba(DH.purple, 0.2)}` }}>AI PROPOSAL</span>
                       )}
                       <StatusPill label={c.state} />
                     </div>
@@ -105,14 +105,14 @@ export function CommandsAuditView() {
                             <span className="whitespace-nowrap text-[8.5px] font-medium" style={{ color: active ? (isFail ? DH.danger : DH.textSecondary) : `${DH.textSecondary}88` }}>{st}</span>
                           </div>
                           {i < arr.length - 1 && (
-                            <div className="mx-1 h-[2px] w-4 sm:w-8" style={{ backgroundColor: active && !isFail ? DH.accent : DH.surfaceHover }} />
+                            <div className="mx-1 h-[2px] w-4 rounded-full sm:w-8" style={{ backgroundColor: active && !isFail ? DH.accent : DH.surfaceHover }} />
                           )}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10.5px]" style={{ color: DH.textSecondary }}>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10.5px] tabular-nums" style={{ color: DH.textSecondary }}>
                     <span>requester: {c.requester}</span>
                     <span>created: {timeAgo(c.createdAt)}</span>
                     {c.sentAt && <span>sent: {fmtTs(c.sentAt)}</span>}
@@ -127,9 +127,9 @@ export function CommandsAuditView() {
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-          <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
-            <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Audit Trail ({auditData?.events?.length ?? 0})</h3>
+        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+            <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Audit Trail ({fmtInt(auditData?.events?.length ?? 0)})</h3>
             <p className="mt-0.5 text-[11px]" style={{ color: DH.textSecondary }}>Actor · action · resource · outcome · timestamp (credentials are never logged)</p>
           </div>
           <div className="overflow-x-auto">
@@ -144,7 +144,7 @@ export function CommandsAuditView() {
               <tbody>
                 {(auditData?.events || []).map((e: any) => (
                   <tr key={e.id} className="border-b transition-colors hover:bg-slate-700/25" style={{ borderColor: `${DH.border}88` }}>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-[11px]" style={{ color: DH.textSecondary }}>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-[11px] tabular-nums" style={{ color: DH.textSecondary }}>
                       {timeAgo(e.createdAt)}
                       <div className="text-[9.5px]">{fmtTs(e.createdAt)}</div>
                     </td>

@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, EmptyState, stateColor, SimulatorBadge } from "./shared";
+import { StatCard, StatusPill, DH, EmptyState, stateColor, SimulatorBadge, rgba, fmtInt } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -97,25 +97,28 @@ export function SettingsView() {
         <StatCard icon={<Server className="h-5 w-5" />} label="MQTT Broker" value={sysData?.mqttBroker?.status === "up" ? "UP" : (sysData?.mqttBroker?.status || "…")} trend="aedes · port 1883" trendUp={sysData?.mqttBroker?.status === "up"} iconColor={DH.cyan} />
         <StatCard icon={<Server className="h-5 w-5" />} label="Edge Gateway" value={sysData?.gateway?.status === "up" ? "UP" : (sysData?.gateway?.status || "…")} trend={`port 3011 · ${sysData?.gateway?.latencyMs ?? "—"}ms`} trendUp={sysData?.gateway?.status === "up"} iconColor={sysData?.gateway?.status === "up" ? DH.success : DH.danger} />
         <StatCard icon={<Server className="h-5 w-5" />} label="Analytics (Python)" value={sysData?.analytics?.status === "up" ? "UP" : (sysData?.analytics?.status || "…")} trend="FastAPI · port 3014" trendUp={sysData?.analytics?.status === "up"} iconColor={DH.purple} />
-        <StatCard icon={<Server className="h-5 w-5" />} label="Database" value={sysData?.database?.status === "up" ? "UP" : (sysData?.database?.status || "…")} trend={`${sysData?.database?.samples ?? 0} samples stored`} trendUp={sysData?.database?.status === "up"} iconColor={DH.success} />
+        <StatCard icon={<Server className="h-5 w-5" />} label="Database" value={sysData?.database?.status === "up" ? "UP" : (sysData?.database?.status || "…")} trend={`${fmtInt(sysData?.database?.samples ?? 0)} samples stored`} trendNeutral iconColor={DH.success} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* Users & roles (ADMIN) */}
-        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.border }}>
-            <h3 className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
-              <Users className="h-4 w-4" style={{ color: DH.accent }} /> Users & Roles
+        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+            <h3 className="flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.accent, 0.12), border: `1px solid ${rgba(DH.accent, 0.2)}`, color: DH.accent }}>
+                <Users className="h-4 w-4" />
+              </span>
+              Users & Roles
             </h3>
             {user?.role !== "ADMIN" && <span className="text-[10px]" style={{ color: DH.textSecondary }}>ADMIN only</span>}
           </div>
           <div className="p-4">
             {user?.role === "ADMIN" ? (
               usersData?.users?.map((u: any) => (
-                <div key={u.id} className="mb-2 flex items-center justify-between gap-3 rounded-xl border px-4 py-3" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+                <div key={u.id} className="mb-2 flex items-center justify-between gap-3 rounded-xl border px-4 py-3" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                   <div>
                     <div className="text-[13px] font-semibold" style={{ color: DH.textPrimary }}>{u.name}</div>
-                    <div className="text-[10.5px]" style={{ color: DH.textSecondary }}>@{u.username} · {u.commandsIssued} commands · {u.auditEvents} audit events</div>
+                    <div className="text-[10.5px] tabular-nums" style={{ color: DH.textSecondary }}>@{u.username} · {u.commandsIssued} commands · {u.auditEvents} audit events</div>
                   </div>
                   <StatusPill label={u.role} color={u.role === "ADMIN" ? DH.danger : u.role === "OPERATOR" ? DH.warning : DH.accent} />
                 </div>
@@ -136,10 +139,13 @@ export function SettingsView() {
         </div>
 
         {/* Simulator control */}
-        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.border }}>
-            <h3 className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
-              <Sliders className="h-4 w-4" style={{ color: DH.purple }} /> Simulator Control
+        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+            <h3 className="flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.purple, 0.12), border: `1px solid ${rgba(DH.purple, 0.2)}`, color: DH.purple }}>
+                <Sliders className="h-4 w-4" />
+              </span>
+              Simulator Control
               <SimulatorBadge />
             </h3>
             {canOperate && (
@@ -159,7 +165,7 @@ export function SettingsView() {
           <div className="p-4">
             {/* failure injection */}
             {canOperate && (
-              <div className="mb-4 rounded-xl border p-3" style={{ borderColor: `${DH.purple}33`, backgroundColor: `${DH.purple}0a` }}>
+              <div className="mb-4 rounded-xl border p-3" style={{ borderColor: rgba(DH.purple, 0.25), backgroundColor: rgba(DH.purple, 0.05) }}>
                 <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold" style={{ color: DH.purple }}>
                   <Bug className="h-3.5 w-3.5" /> TEST INJECTION — duplicate / delayed telemetry
                 </div>
@@ -195,11 +201,11 @@ export function SettingsView() {
             {/* fleet grid */}
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {simFleet.map((d: any) => (
-                <div key={d.deviceId} className="flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1.5" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+                <div key={d.deviceId} className="flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1.5" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                   <span className="font-mono text-[9.5px]" style={{ color: DH.textPrimary }}>{d.deviceId}</span>
                   <span
                     className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: d.killed || d.wentSilent ? DH.danger : d.paused ? DH.warning : d.connected ? DH.success : DH.textSecondary }}
+                    style={{ backgroundColor: d.killed || d.wentSilent ? DH.danger : d.paused ? DH.warning : d.connected ? DH.success : DH.textSecondary, boxShadow: d.connected && !d.paused ? `0 0 6px ${rgba(DH.success, 0.7)}` : undefined }}
                     title={`${d.profile} · ${d.published} published${d.wentSilent ? " · SILENT" : ""}`}
                   />
                 </div>
@@ -211,16 +217,19 @@ export function SettingsView() {
       </div>
 
       {/* platform info */}
-      <div className="rounded-2xl border p-5" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-        <h3 className="mb-3 flex items-center gap-2 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
-          <ShieldCheck className="h-4 w-4" style={{ color: DH.success }} /> Platform Information
+      <div className="rounded-2xl border p-5" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+        <h3 className="mb-3 flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.success, 0.12), border: `1px solid ${rgba(DH.success, 0.2)}`, color: DH.success }}>
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          Platform Information
         </h3>
         <div className="grid grid-cols-1 gap-3 text-[11.5px] sm:grid-cols-2 lg:grid-cols-4">
           <InfoRow label="Platform" value="DeviceHub — IoT Device Management, Edge Gateway, Telemetry Analytics and Local AI Platform" />
           <InfoRow label="Owner / Copyright" value="Parsa Fathi · © 2026 · Apache-2.0" />
           <InfoRow label="Data origin" value="Deterministic simulator (seeded, reproducible). Physical device: 0." />
           <InfoRow label="Protocol" value="DeviceHub protocol v1 (JSON envelope over MQTT QoS1; C11 binary codec in protocol-c/)" />
-          <InfoRow label="Storage" value={`${sysData?.database?.devices ?? "—"} devices · ${sysData?.database?.samples ?? "—"} samples · ${sysData?.database?.alerts ?? "—"} alerts · ${sysData?.database?.commands ?? "—"} commands`} />
+          <InfoRow label="Storage" value={`${sysData?.database?.devices ?? "—"} devices · ${fmtInt(sysData?.database?.samples ?? 0)} samples · ${sysData?.database?.alerts ?? "—"} alerts · ${sysData?.database?.commands ?? "—"} commands`} />
           <InfoRow label="Offline buffer" value="Durable SQLite spool (WAL) at the edge — survives gateway restarts, 5000-record cap with loss events" />
           <InfoRow label="Automation" value="Deterministic edge rules (duration hold + cooldown) — independent of the AI layer" />
           <InfoRow label="AI layer" value="Optional, evidence-grounded, advisory-only. Platform operates fully without it." />
@@ -232,9 +241,9 @@ export function SettingsView() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border p-3" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+    <div className="rounded-xl border p-3" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
       <div className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: DH.textSecondary }}>{label}</div>
-      <div className="mt-1 text-[11.5px] leading-snug" style={{ color: DH.textPrimary }}>{value}</div>
+      <div className="mt-1 text-[11.5px] leading-snug tabular-nums" style={{ color: DH.textPrimary }}>{value}</div>
     </div>
   );
 }

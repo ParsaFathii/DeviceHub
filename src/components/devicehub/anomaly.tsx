@@ -5,10 +5,9 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, EmptyState, severityColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, EmptyState, severityColor, ProgressBar, rgba } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Sparkles, Brain, Scale, FlaskConical, Database, Loader2, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -93,15 +92,15 @@ export function AnomalyView() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Brain className="h-5 w-5" />} label="Model" value={modelInfo?.modelVersion || "if-v1.0"} trend={modelInfo?.algorithm || "IsolationForest"} trendUp />
+        <StatCard icon={<Brain className="h-5 w-5" />} label="Model" value={modelInfo?.modelVersion || "if-v1.0"} trend={modelInfo?.algorithm || "IsolationForest"} trendNeutral iconColor={DH.purple} />
         <StatCard icon={<Sparkles className="h-5 w-5" />} label="IF Findings" value={ifFindings.length} trend={`score > 0.7: ${highScore}`} trendUp={highScore === 0} iconColor={DH.purple} />
-        <StatCard icon={<Scale className="h-5 w-5" />} label="Baseline Findings" value={baselineFindings.length} trend="deterministic z-score" trendUp iconColor={DH.cyan} />
-        <StatCard icon={<Database className="h-5 w-5" />} label="Detection Runs" value={data?.runs?.length ?? 0} trend="persisted analytics runs" trendUp iconColor={DH.success} />
+        <StatCard icon={<Scale className="h-5 w-5" />} label="Baseline Findings" value={baselineFindings.length} trend="deterministic z-score" trendNeutral iconColor={DH.cyan} />
+        <StatCard icon={<Database className="h-5 w-5" />} label="Detection Runs" value={data?.runs?.length ?? 0} trend="persisted analytics runs" trendNeutral iconColor={DH.success} />
       </div>
 
       {/* Controls + model info */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="rounded-2xl border p-5 xl:col-span-2" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
+        <div className="rounded-2xl border p-5 xl:col-span-2" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Anomaly Detection Pipeline</h3>
@@ -125,7 +124,7 @@ export function AnomalyView() {
             </div>
           </div>
           {modelInfo?.limitations && (
-            <div className="mt-4 space-y-1.5 rounded-xl border p-3" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+            <div className="mt-4 space-y-1.5 rounded-xl border p-3" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
               <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: DH.textSecondary }}>Documented model limitations</div>
               {modelInfo.limitations.map((l: string, i: number) => (
                 <div key={i} className="flex items-start gap-2 text-[11px]" style={{ color: DH.textSecondary }}>
@@ -137,14 +136,14 @@ export function AnomalyView() {
         </div>
 
         {/* runs */}
-        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-          <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
+        <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
             <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Analytics Runs</h3>
           </div>
           <div className="max-h-[220px] overflow-y-auto p-3">
             {(!data?.runs || data.runs.length === 0) && <EmptyState title="No runs recorded yet" subtitle="Run detection or evaluation" />}
             {data?.runs?.map((r: any, i: number) => (
-              <div key={i} className="mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+              <div key={i} className="mb-1.5 flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                 <div>
                   <div className="text-[12px] font-medium" style={{ color: DH.textPrimary }}>{r.kind}{r.model ? ` · ${r.model}` : ""}</div>
                   <div className="text-[10px]" style={{ color: DH.textSecondary }}>{timeAgo(r.startedAt)}</div>
@@ -238,27 +237,29 @@ export function AnomalyView() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span
-                    className="flex h-6 w-6 items-center justify-center rounded-full"
-                    style={{ color: f.model === "isolation_forest" ? DH.purple : DH.cyan, backgroundColor: `${f.model === "isolation_forest" ? DH.purple : DH.cyan}1a` }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg"
+                    style={{
+                      color: f.model === "isolation_forest" ? DH.purple : DH.cyan,
+                      backgroundColor: rgba(f.model === "isolation_forest" ? DH.purple : DH.cyan, 0.13),
+                      border: `1px solid ${rgba(f.model === "isolation_forest" ? DH.purple : DH.cyan, 0.25)}`,
+                    }}
                   >
-                    <Cpu className="h-3 w-3" />
+                    <Cpu className="h-3.5 w-3.5" />
                   </span>
                   <span className="text-[12.5px] font-semibold" style={{ color: DH.textPrimary }}>{f.deviceId} · {f.metric}</span>
-                  <span className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold" style={{ color: f.model === "isolation_forest" ? DH.purple : DH.cyan, backgroundColor: `${f.model === "isolation_forest" ? DH.purple : DH.cyan}14` }}>
+                  <span className="rounded-full px-2 py-0.5 text-[9.5px] font-semibold" style={{ color: f.model === "isolation_forest" ? DH.purple : DH.cyan, backgroundColor: rgba(f.model === "isolation_forest" ? DH.purple : DH.cyan, 0.10), border: `1px solid ${rgba(f.model === "isolation_forest" ? DH.purple : DH.cyan, 0.20)}` }}>
                     {f.model} v{f.modelVersion}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div className="w-28">
-                    <div className="mb-0.5 flex justify-between text-[9px]" style={{ color: DH.textSecondary }}>
+                    <div className="mb-1 flex justify-between text-[9px]" style={{ color: DH.textSecondary }}>
                       <span>score</span>
-                      <span className="font-mono" style={{ color: DH.textPrimary }}>{f.score.toFixed(3)}</span>
+                      <span className="font-mono font-semibold tabular-nums" style={{ color: DH.textPrimary }}>{f.score.toFixed(3)}</span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: DH.surfaceHover }}>
-                      <div className="h-full rounded-full" style={{ width: `${f.score * 100}%`, backgroundColor: f.score > 0.7 ? DH.danger : f.score > 0.4 ? DH.warning : DH.success }} />
-                    </div>
+                    <ProgressBar percent={f.score * 100} color={f.score > 0.7 ? DH.danger : f.score > 0.4 ? DH.warning : DH.success} height={5} />
                   </div>
-                  <span className="text-[10px]" style={{ color: DH.textSecondary }}>{timeAgo(f.detectedAt)}</span>
+                  <span className="text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>{timeAgo(f.detectedAt)}</span>
                 </div>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-x-4 text-[10.5px]" style={{ color: DH.textSecondary }}>
@@ -277,11 +278,11 @@ export function AnomalyView() {
 function MetricBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div>
-      <div className="mb-1 flex justify-between text-[11px]">
+      <div className="mb-1.5 flex justify-between text-[11px]">
         <span style={{ color: DH.textSecondary }}>{label}</span>
-        <span className="font-mono font-semibold" style={{ color: DH.textPrimary }}>{value.toFixed(3)}</span>
+        <span className="font-mono font-semibold tabular-nums" style={{ color: DH.textPrimary }}>{value.toFixed(3)}</span>
       </div>
-      <Progress value={value * 100} className="h-1.5 bg-slate-700/60" style={{ "--progress-foreground": color } as any} />
+      <ProgressBar percent={value * 100} color={color} height={6} />
     </div>
   );
 }

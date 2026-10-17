@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDhStore, ViewId } from "@/lib/store";
 import { useRealtime } from "@/hooks/use-realtime";
-import { DH, SimulatorBadge } from "./shared";
+import { DH, SimulatorBadge, rgba } from "./shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -120,7 +120,13 @@ export function Shell() {
             style={{ borderColor: DH.border, backgroundColor: "#0D1424" }}
           >
             <div className="flex items-center gap-3 px-4 py-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: DH.accent }}>
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
+                  boxShadow: `0 4px 14px ${rgba(DH.accent, 0.45)}, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                }}
+              >
                 <Activity className="h-5 w-5 text-white" />
               </div>
               {!navCollapsed && (
@@ -139,12 +145,21 @@ export function Shell() {
                     key={item.id}
                     onClick={() => setView(item.id)}
                     title={item.label}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all ${
                       active ? "" : "hover:bg-slate-700/30"
                     }`}
-                    style={active ? { backgroundColor: DH.surfaceHover, color: DH.textPrimary, boxShadow: `inset 3px 0 0 ${DH.accent}` } : { color: DH.textSecondary }}
+                    style={
+                      active
+                        ? {
+                            background: "linear-gradient(90deg, rgba(59,130,246,0.20) 0%, rgba(59,130,246,0.07) 100%)",
+                            border: `1px solid ${rgba(DH.accent, 0.35)}`,
+                            color: DH.textPrimary,
+                            boxShadow: `inset 3px 0 0 ${DH.accent}, 0 2px 10px ${rgba(DH.accent, 0.25)}`,
+                          }
+                        : { color: DH.textSecondary, border: "1px solid transparent" }
+                    }
                   >
-                    <span className="shrink-0">{item.icon}</span>
+                    <span className="shrink-0" style={active ? { color: DH.accent } : undefined}>{item.icon}</span>
                     {!navCollapsed && <span className="truncate">{item.label}</span>}
                     {!navCollapsed && item.id === "alerts" && activeAlerts > 0 && (
                       <span
@@ -193,7 +208,13 @@ export function Shell() {
             {/* Topbar */}
             <header className="flex items-center gap-3 border-b px-4 py-3.5 sm:px-6" style={{ borderColor: DH.border }}>
               <div className="flex items-center gap-2 md:hidden">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: DH.accent }}>
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-lg"
+                  style={{
+                    background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
+                    boxShadow: `0 2px 10px ${rgba(DH.accent, 0.4)}`,
+                  }}
+                >
                   <Activity className="h-4 w-4 text-white" />
                 </div>
               </div>
@@ -212,8 +233,8 @@ export function Shell() {
                 />
               </div>
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                <span className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold lg:flex" style={{ color: DH.cyan, backgroundColor: `${DH.cyan}12` }}>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: DH.cyan }} />
+                <span className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tabular-nums lg:flex" style={{ color: DH.cyan, backgroundColor: rgba(DH.cyan, 0.08), border: `1px solid ${rgba(DH.cyan, 0.2)}` }}>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: DH.cyan, boxShadow: `0 0 6px ${rgba(DH.cyan, 0.9)}` }} />
                   {ingestCounter > 0 ? `${ingestCounter} live samples` : "awaiting data"}
                 </span>
                 <Popover>
@@ -260,8 +281,8 @@ export function Shell() {
                 </Popover>
                 <div className="hidden h-6 w-px sm:block" style={{ backgroundColor: DH.border }} />
                 <div className="flex items-center gap-2.5">
-                  <Avatar className="h-9 w-9 border" style={{ borderColor: DH.border }}>
-                    <AvatarFallback className="text-[11px] font-bold" style={{ backgroundColor: `${DH.accent}25`, color: "#93c5fd" }}>
+                  <Avatar className="h-9 w-9 border" style={{ borderColor: rgba(DH.accent, 0.3) }}>
+                    <AvatarFallback className="text-[11px] font-bold" style={{ background: `linear-gradient(135deg, ${rgba(DH.accent, 0.22)} 0%, ${rgba(DH.accent, 0.10)} 100%)`, color: "#93c5fd" }}>
                       {initial}
                     </AvatarFallback>
                   </Avatar>

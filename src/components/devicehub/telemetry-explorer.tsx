@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
-import { DH, EmptyState, SimulatorBadge } from "./shared";
+import { DH, EmptyState, SimulatorBadge, rgba, fmtInt } from "./shared";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Download, Loader2 } from "lucide-react";
@@ -90,7 +90,7 @@ export function TelemetryExplorerView() {
   return (
     <div className="space-y-5">
       {/* Controls */}
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border p-4" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border p-4" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
         <div className="space-y-1.5">
           <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: DH.textSecondary }}>Device</div>
           <Select value={effectiveDeviceId} onValueChange={setDeviceId}>
@@ -157,15 +157,17 @@ export function TelemetryExplorerView() {
       </div>
 
       {/* Main chart */}
-      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: DH.border }}>
-          <h3 className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
-            <LineChart className="h-4 w-4" style={{ color: DH.accent }} />
+      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+          <h3 className="flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.accent, 0.12), border: `1px solid ${rgba(DH.accent, 0.2)}`, color: DH.accent }}>
+              <LineChart className="h-4 w-4" />
+            </span>
             {effectiveDeviceId || "—"} · {metric} {unit && <span className="text-[12px] font-normal" style={{ color: DH.textSecondary }}>({unit})</span>}
           </h3>
-          <div className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: DH.textSecondary }}>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>
             {selectedDevice?.simulator && <SimulatorBadge />}
-            <span>{samples.length} samples</span>
+            <span>{fmtInt(samples.length)} samples</span>
             <span>· agg: {data?.aggregation || "—"}</span>
             {data?.outOfOrder > 0 && <span style={{ color: DH.cyan }}>· {data.outOfOrder} out-of-order</span>}
             {gaps.length > 0 && <span style={{ color: DH.warning }}>· {gaps.length} gaps</span>}
@@ -187,17 +189,17 @@ export function TelemetryExplorerView() {
                     <stop offset="100%" stopColor={DH.accent} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+                <CartesianGrid strokeDasharray="4 6" stroke="rgba(30,41,59,0.65)" vertical={false} />
                 <XAxis
                   dataKey="label"
                   tick={{ fill: DH.textSecondary, fontSize: 10 }}
-                  axisLine={{ stroke: DH.border }}
+                  axisLine={{ stroke: rgba(DH.textSecondary, 0.15) }}
                   tickLine={false}
                   minTickGap={60}
                 />
-                <YAxis tick={{ fill: DH.textSecondary, fontSize: 10 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                <YAxis tick={{ fill: DH.textSecondary, fontSize: 10 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} width={48} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: DH.surface, border: `1px solid ${DH.border}`, borderRadius: 12, fontSize: 12, color: DH.textPrimary }}
+                  contentStyle={{ backgroundColor: "#101A2C", border: `1px solid ${DH.borderSoft}`, borderRadius: 12, fontSize: 12, color: DH.textPrimary, boxShadow: "0 12px 32px -12px rgba(0,0,0,0.7)" }}
                   labelStyle={{ color: DH.textSecondary }}
                   formatter={(v: any, _n: any, p: any) => [
                     `${Number(v).toFixed(2)} ${unit}${p?.payload?.quality !== "GOOD" ? ` (${p.payload.quality})` : ""}${p?.payload?.delayed ? " · DELAYED" : ""}`,
@@ -216,7 +218,7 @@ export function TelemetryExplorerView() {
                     strokeOpacity={0.25}
                   />
                 ))}
-                <Area type="monotone" dataKey="v" stroke={DH.accent} strokeWidth={2} fill="url(#telemetryGrad)" connectNulls dot={false} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="v" stroke={DH.accent} strokeWidth={2.5} fill="url(#telemetryGrad)" connectNulls dot={false} activeDot={{ r: 4, fill: DH.accent, stroke: "#0B1120", strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -224,9 +226,9 @@ export function TelemetryExplorerView() {
       </div>
 
       {/* Aggregation table */}
-      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-        <div className="border-b px-5 py-4" style={{ borderColor: DH.border }}>
-          <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Aggregated Buckets ({data?.buckets?.length || 0})</h3>
+      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+        <div className="border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+          <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Aggregated Buckets ({fmtInt(data?.buckets?.length || 0)})</h3>
         </div>
         <div className="max-h-[260px] overflow-auto">
           <table className="w-full min-w-[560px] text-left">
@@ -240,16 +242,16 @@ export function TelemetryExplorerView() {
             <tbody>
               {(data?.buckets || []).slice().reverse().map((b: any, i: number) => (
                 <tr key={i} className="border-b" style={{ borderColor: `${DH.border}66` }}>
-                  <td className="px-4 py-2 text-[11.5px]" style={{ color: DH.textPrimary }}>{new Date(b.start).toLocaleTimeString()}</td>
-                  <td className="px-4 py-2 font-mono text-[11.5px]" style={{ color: DH.textSecondary }}>{b.min ?? "—"}</td>
-                  <td className="px-4 py-2 font-mono text-[11.5px] font-semibold" style={{ color: DH.textPrimary }}>{b.avg ?? "—"}</td>
-                  <td className="px-4 py-2 font-mono text-[11.5px]" style={{ color: DH.textSecondary }}>{b.max ?? "—"}</td>
-                  <td className="px-4 py-2 text-[11.5px]" style={{ color: DH.textSecondary }}>{b.count}</td>
+                  <td className="px-4 py-2 text-[11.5px] tabular-nums" style={{ color: DH.textPrimary }}>{new Date(b.start).toLocaleTimeString()}</td>
+                  <td className="px-4 py-2 font-mono text-[11.5px] tabular-nums" style={{ color: DH.textSecondary }}>{b.min ?? "—"}</td>
+                  <td className="px-4 py-2 font-mono text-[11.5px] font-semibold tabular-nums" style={{ color: DH.textPrimary }}>{b.avg ?? "—"}</td>
+                  <td className="px-4 py-2 font-mono text-[11.5px] tabular-nums" style={{ color: DH.textSecondary }}>{b.max ?? "—"}</td>
+                  <td className="px-4 py-2 text-[11.5px] tabular-nums" style={{ color: DH.textSecondary }}>{b.count}</td>
                   <td className="px-4 py-2">
                     {b.missing ? (
-                      <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ color: DH.warning, backgroundColor: `${DH.warning}18` }}>MISSING DATA</span>
+                      <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: DH.warning, backgroundColor: rgba(DH.warning, 0.10), border: `1px solid ${rgba(DH.warning, 0.22)}` }}>MISSING DATA</span>
                     ) : (
-                      <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ color: DH.success, backgroundColor: `${DH.success}18` }}>OK</span>
+                      <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ color: DH.success, backgroundColor: rgba(DH.success, 0.10), border: `1px solid ${rgba(DH.success, 0.22)}` }}>OK</span>
                     )}
                   </td>
                 </tr>

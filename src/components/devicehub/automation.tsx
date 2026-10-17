@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, EmptyState, stateColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, EmptyState, stateColor, rgba } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -67,14 +67,19 @@ export function AutomationView() {
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Workflow className="h-5 w-5" />} label="Total Rules" value={rules.length} trend={`${enabledCount} enabled`} trendUp />
-        <StatCard icon={<Zap className="h-5 w-5" />} label="Rules Fired" value={data?.stats?.totalFired ?? 0} trend="total (edge engine)" trendUp iconColor={DH.danger} />
-        <StatCard icon={<ShieldOff className="h-5 w-5" />} label="Cooldown Suppressed" value={data?.stats?.totalSuppressed ?? 0} trend="repeated events dampened" trendUp iconColor={DH.warning} />
+        <StatCard icon={<Zap className="h-5 w-5" />} label="Rules Fired" value={data?.stats?.totalFired ?? 0} trend="total (edge engine)" trendNeutral iconColor={DH.danger} />
+        <StatCard icon={<ShieldOff className="h-5 w-5" />} label="Cooldown Suppressed" value={data?.stats?.totalSuppressed ?? 0} trend="repeated events dampened" trendNeutral iconColor={DH.warning} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} label="Deterministic Engine" value="ACTIVE" trend="edge gateway — LLM independent" trendUp iconColor={DH.success} />
       </div>
 
-      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: DH.border }}>
-          <h3 className="text-[15px] font-semibold" style={{ color: DH.textPrimary }}>Automation Rules</h3>
+      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
+          <h3 className="flex items-center gap-2.5 text-[15px] font-semibold" style={{ color: DH.textPrimary }}>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: rgba(DH.accent, 0.12), border: `1px solid ${rgba(DH.accent, 0.2)}`, color: DH.accent }}>
+              <Workflow className="h-4 w-4" />
+            </span>
+            Automation Rules
+          </h3>
           {canOperate && (
             <Button size="sm" className="h-8 gap-1.5 text-[12px]" style={{ backgroundColor: DH.accent }} onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" /> New Rule
@@ -110,10 +115,10 @@ export function AutomationView() {
                       {r.metric} {r.condition === "ABOVE" ? ">" : "<"} {r.threshold}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[12px]" style={{ color: DH.textSecondary }}>{r.durationSec}s</td>
+                  <td className="px-4 py-3 text-[12px] tabular-nums" style={{ color: DH.textSecondary }}>{r.durationSec}s</td>
                   <td className="px-4 py-3"><StatusPill label={r.severity} /></td>
-                  <td className="px-4 py-3 text-[12px]" style={{ color: DH.textSecondary }}>{r.cooldownSec}s</td>
-                  <td className="px-4 py-3 text-[12px]" style={{ color: DH.textSecondary }}>v{r.version}</td>
+                  <td className="px-4 py-3 text-[12px] tabular-nums" style={{ color: DH.textSecondary }}>{r.cooldownSec}s</td>
+                  <td className="px-4 py-3 text-[12px] tabular-nums" style={{ color: DH.textSecondary }}>v{r.version}</td>
                   <td className="px-4 py-3 text-[11px]" style={{ color: DH.textSecondary }}>{r.lastTriggeredAt ? timeAgo(r.lastTriggeredAt) : "never"}</td>
                   <td className="px-4 py-3">
                     <Switch
@@ -168,14 +173,14 @@ export function AutomationView() {
           <div className="max-h-[420px] space-y-1.5 overflow-y-auto">
             {(!historyData?.executions || historyData.executions.length === 0) && <EmptyState title="No executions recorded" />}
             {historyData?.executions?.map((e: any, i: number) => (
-              <div key={i} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+              <div key={i} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
                 <div className="min-w-0">
                   <div className="text-[12px] font-medium" style={{ color: stateColor(e.outcome === "FIRED" ? "SUCCEEDED" : e.outcome === "SUPPRESSED_COOLDOWN" ? "WARNING" : e.outcome === "NOT_MET" ? "OFFLINE" : "QUEUED") }}>
                     {e.outcome}
                   </div>
                   <div className="text-[10.5px]" style={{ color: DH.textSecondary }}>{e.deviceName} · {JSON.stringify(e.detail).slice(0, 80)}</div>
                 </div>
-                <span className="shrink-0 text-[10px]" style={{ color: DH.textSecondary }}>{timeAgo(e.createdAt)}</span>
+                <span className="shrink-0 text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>{timeAgo(e.createdAt)}</span>
               </div>
             ))}
           </div>

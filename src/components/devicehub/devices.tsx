@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, fmtVal, SimulatorBadge, EmptyState, severityColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, fmtVal, SimulatorBadge, EmptyState, severityColor, ProgressBar, healthColor } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -142,17 +142,9 @@ export function DevicesView({ search: externalSearch }: { search?: string }) {
                   <td className="px-4 py-3 text-[12px]" style={{ color: DH.textSecondary }}>{d.zone || "—"}</td>
                   <td className="px-4 py-3"><StatusPill label={d.state} /></td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-14 overflow-hidden rounded-full" style={{ backgroundColor: DH.surfaceHover }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${d.health}%`,
-                            backgroundColor: d.health > 80 ? DH.success : d.health > 60 ? DH.warning : DH.danger,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-medium" style={{ color: DH.textPrimary }}>{d.health}%</span>
+                    <div className="flex items-center gap-2.5">
+                      <ProgressBar percent={d.health} color={healthColor(d.health)} height={5} className="w-16" />
+                      <span className="text-[11.5px] font-semibold tabular-nums" style={{ color: DH.textPrimary }}>{d.health}%</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[11px]" style={{ color: DH.textSecondary }}>{timeAgo(d.lastSeenAt)}</td>

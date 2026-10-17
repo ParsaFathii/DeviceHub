@@ -23,10 +23,13 @@ export async function GET() {
     return NextResponse.json({
       status: providerReachable ? "available" : "unavailable",
       provider: "z-ai-chat (documented provider abstraction)",
+      streaming: true,
+      multiTurn: true,
+      historyPersisted: true,
       advisoryOnly: true,
       canExecuteCommands: false,
       receivesCredentials: false,
-      grounding: "answers are built from sanitized telemetry/alert/anomaly/rule evidence only",
+      grounding: "answers are built from sanitized telemetry/alert/anomaly/rule/gateway/command evidence only",
       error: providerError,
       note: "The DeviceHub platform remains fully operational when the AI layer is unavailable.",
     });

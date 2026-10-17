@@ -5,7 +5,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { StatusPill, DH, timeAgo, fmtTs, fmtVal, SimulatorBadge, EmptyState, severityColor, stateColor } from "./shared";
+import { StatusPill, DH, timeAgo, fmtTs, fmtVal, SimulatorBadge, EmptyState, severityColor, stateColor, GaugeRing, healthColor, rgba } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,10 +68,17 @@ export function DeviceDetailView({ deviceId }: { deviceId: string | null }) {
   return (
     <div className="space-y-5">
       {/* Identity header */}
-      <div className="rounded-2xl border p-5" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
+      <div className="rounded-2xl border p-5" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: `${DH.accent}1a`, color: DH.accent }}>
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{
+                background: `linear-gradient(135deg, ${rgba(DH.accent, 0.22)} 0%, ${rgba(DH.accent, 0.08)} 100%)`,
+                border: `1px solid ${rgba(DH.accent, 0.28)}`,
+                color: DH.accent,
+              }}
+            >
               <Radio className="h-6 w-6" />
             </div>
             <div>
@@ -96,7 +103,8 @@ export function DeviceDetailView({ deviceId }: { deviceId: string | null }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-5">
+            <GaugeRing percent={d.health} color={healthColor(d.health)} label={`${d.health}%`} sublabel="Health" size={92} />
             {canOperate && (
               <>
                 <Button variant="outline" size="sm" className="gap-1.5 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-700/40" onClick={() => sendCommand.mutate({ action: "REBOOT" })} disabled={sendCommand.isPending}>
@@ -109,8 +117,7 @@ export function DeviceDetailView({ deviceId }: { deviceId: string | null }) {
             )}
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-          <InfoTile label="Health" value={`${d.health}%`} color={d.health > 80 ? DH.success : d.health > 60 ? DH.warning : DH.danger} />
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
           <InfoTile label="Capabilities" value={(d.capabilities?.metrics || []).length + " metrics"} />
           <InfoTile label="Commands" value={(d.capabilities?.commands || []).join(", ")} small />
           <InfoTile label="Origin" value={d.origin} />
@@ -246,16 +253,16 @@ function MetricChart({ metric, series }: { metric: string; series: any[] }) {
                 <stop offset="100%" stopColor={color} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-            <XAxis dataKey="t" tick={{ fill: DH.textSecondary, fontSize: 9 }} axisLine={{ stroke: DH.border }} tickLine={false} minTickGap={40} />
+            <CartesianGrid strokeDasharray="4 6" stroke="rgba(30,41,59,0.65)" vertical={false} />
+            <XAxis dataKey="t" tick={{ fill: DH.textSecondary, fontSize: 9 }} axisLine={{ stroke: rgba(DH.textSecondary, 0.15) }} tickLine={false} minTickGap={40} />
             <YAxis tick={{ fill: DH.textSecondary, fontSize: 9 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
             <Tooltip
-              contentStyle={{ backgroundColor: DH.surface, border: `1px solid ${DH.border}`, borderRadius: 12, fontSize: 11, color: DH.textPrimary }}
+              contentStyle={{ backgroundColor: "#101A2C", border: `1px solid ${DH.borderSoft}`, borderRadius: 12, fontSize: 11, color: DH.textPrimary, boxShadow: "0 12px 32px -12px rgba(0,0,0,0.7)" }}
               labelStyle={{ color: DH.textSecondary }}
               formatter={(v: any, _n: any, p: any) => [`${Number(v).toFixed(2)} ${unit}${p?.payload?.quality !== "GOOD" ? ` (${p.payload.quality})` : ""}`, metric]}
             />
             {threshold !== null && <ReferenceLine y={threshold} stroke={DH.danger} strokeDasharray="6 4" strokeWidth={1} />}
-            <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#g-${metric})`} />
+            <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2.5} fill={`url(#g-${metric})`} activeDot={{ r: 3.5, fill: color, stroke: "#0B1120", strokeWidth: 2 }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -265,9 +272,9 @@ function MetricChart({ metric, series }: { metric: string; series: any[] }) {
 
 function InfoTile({ label, value, color, small }: { label: string; value: React.ReactNode; color?: string; small?: boolean }) {
   return (
-    <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+    <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
       <div className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: DH.textSecondary }}>{label}</div>
-      <div className={`mt-0.5 ${small ? "text-[10.5px]" : "text-[13px] font-semibold"}`} style={{ color: color || DH.textPrimary }}>{value}</div>
+      <div className={`mt-0.5 ${small ? "text-[10.5px]" : "text-[13px] font-semibold tabular-nums"}`} style={{ color: color || DH.textPrimary }}>{value}</div>
     </div>
   );
 }

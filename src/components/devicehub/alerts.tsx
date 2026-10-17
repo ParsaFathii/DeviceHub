@@ -5,7 +5,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, severityColor } from "./shared";
+import { StatCard, StatusPill, DH, timeAgo, fmtTs, EmptyState, severityColor, rgba } from "./shared";
 import { useDhStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,14 +61,14 @@ export function AlertsView() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Bell className="h-5 w-5" />} label="Total Alerts" value={k.total ?? 0} trend="all time" trendUp />
+        <StatCard icon={<Bell className="h-5 w-5" />} label="Total Alerts" value={k.total ?? 0} trend="all time" trendNeutral />
         <StatCard icon={<AlertCircle className="h-5 w-5" />} label="Critical (active)" value={k.critical ?? 0} trend={`${k.warning ?? 0} warnings active`} trendUp={false} iconColor={DH.danger} />
         <StatCard icon={<AlertTriangle className="h-5 w-5" />} label="Warnings (active)" value={k.warning ?? 0} trend={`${k.info ?? 0} info active`} trendUp={false} iconColor={DH.warning} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} label="Resolved Today" value={k.resolvedToday ?? 0} trend="by operators" trendUp iconColor={DH.success} />
       </div>
 
-      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.border }}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: DH.border }}>
+      <div className="rounded-2xl border" style={{ backgroundColor: DH.surface, borderColor: DH.borderSoft, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: DH.borderFaint }}>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="h-8 bg-slate-800/60">
               {["ACTIVE", "ACKNOWLEDGED", "RESOLVED", "ALL"].map((t) => (
@@ -100,10 +100,14 @@ export function AlertsView() {
                   <td className="max-w-[360px] px-4 py-3">
                     <div className="flex items-start gap-2.5">
                       <span
-                        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                        style={{ color: severityColor(a.severity), backgroundColor: `${severityColor(a.severity)}1a` }}
+                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                        style={{
+                          color: severityColor(a.severity),
+                          backgroundColor: rgba(severityColor(a.severity), 0.13),
+                          border: `1px solid ${rgba(severityColor(a.severity), 0.25)}`,
+                        }}
                       >
-                        {a.severity === "CRITICAL" ? "!" : a.severity === "WARNING" ? "▲" : "i"}
+                        {a.severity === "CRITICAL" ? <AlertCircle className="h-4 w-4" /> : a.severity === "WARNING" ? <AlertTriangle className="h-4 w-4" /> : <Info className="h-4 w-4" />}
                       </span>
                       <div className="min-w-0">
                         <div className="truncate text-[12.5px] font-semibold" style={{ color: DH.textPrimary }}>{a.title}</div>
@@ -116,8 +120,8 @@ export function AlertsView() {
                     <div className="text-[10.5px]" style={{ color: DH.textSecondary }}>{a.deviceId} · {a.zone || "—"}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-[11.5px]" style={{ color: DH.textPrimary }}>{timeAgo(a.createdAt)}</div>
-                    <div className="text-[10px]" style={{ color: DH.textSecondary }}>{fmtTs(a.createdAt)}</div>
+                    <div className="text-[11.5px] tabular-nums" style={{ color: DH.textPrimary }}>{timeAgo(a.createdAt)}</div>
+                    <div className="text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>{fmtTs(a.createdAt)}</div>
                   </td>
                   <td className="px-4 py-3"><StatusPill label={a.severity} /></td>
                   <td className="px-4 py-3"><StatusPill label={a.state} /></td>
@@ -166,11 +170,11 @@ export function AlertsView() {
             <DialogTitle className="text-slate-100">Alert Evidence — {evidenceAlert?.alertId}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-xl border p-3" style={{ borderColor: DH.border, backgroundColor: `${DH.surfaceHover}55` }}>
+            <div className="rounded-xl border p-3" style={{ borderColor: DH.borderFaint, backgroundColor: rgba(DH.surfaceHover, 0.4) }}>
               <div className="text-[12px] font-semibold" style={{ color: DH.textPrimary }}>{evidenceAlert?.title}</div>
               <div className="mt-1 text-[11.5px]" style={{ color: DH.textSecondary }}>{evidenceAlert?.message}</div>
             </div>
-            <div className="rounded-xl border p-3" style={{ borderColor: DH.border }}>
+            <div className="rounded-xl border p-3" style={{ borderColor: DH.borderFaint }}>
               <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: DH.textSecondary }}>Rule evidence (deterministic)</div>
               <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap rounded-lg p-2 font-mono text-[11px]" style={{ color: DH.textPrimary, backgroundColor: "#0B1120" }}>
                 {JSON.stringify(evidenceAlert?.evidence, null, 2)}
