@@ -4,14 +4,17 @@
  *
  * Same evidence gathering, multi-turn history, persistence and audit as the
  * non-stream route, but the answer is delivered as Server-Sent Events:
- *   data: {"type":"meta","sessionId":"...","evidenceSummary":{...}}   (first)
- *   data: {"type":"delta","text":"..."}                               (many)
- *   data: {"type":"done","latencyMs":123}                             (last)
- *   data: {"type":"error","message":"..."}                            (failure)
+ *   data: {"type":"meta","sessionId":"...","evidenceSummary":{...},"seriesPreview":[...]} (first)
+ *   data: {"type":"delta","text":"..."}                                    (many)
+ *   data: {"type":"done","latencyMs":123,"charsPerSec":45,"turns":7,"proposal":null|{...}} (last)
+ *   data: {"type":"error","message":"..."}                                 (failure)
  *
- * The provider SDK is probed to stream natively (ReadableStream of SSE
- * frames); if it ever returns a plain JSON completion instead, the answer is
- * re-chunked into ~6 synthetic deltas so the client contract is identical.
+ * The provider answer is fully buffered BEFORE any delta is forwarded so a
+ * trailing ```proposal fenced block can be stripped and server-validated
+ * (it must NEVER reach a client as raw text); the clean text is then
+ * re-chunked into 8-20 paced deltas (~150ms total budget). If the provider
+ * returns a plain JSON completion instead of a stream, the same buffered
+ * path applies (fallback unchanged in spirit).
  * Copyright © 2026 Parsa Fathi — Apache-2.0
  */
 import { db } from "@/lib/db";
@@ -22,10 +25,13 @@ import ZAI from "z-ai-web-dev-sdk";
 import {
   AI_MODEL_LABEL,
   buildLLMMessages,
+  buildSeriesPreview,
   gatherEvidence,
   iterateProviderStream,
   loadSessionHistory,
+  parseProposalBlock,
   sanitizeSessionId,
+  validateProposal,
   type EvidenceSummary,
 } from "@/lib/ai-evidence";
 import { randomUUID } from "crypto";
@@ -66,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   // ---- persist the operator question BEFORE the model call -----------------
   await db.aiInteraction
-    .create({ data: { sessionId, userId: user.id, role: "user", content: question } })
+    .create({ data: { sessionId, userId: user.id, role: "user", content: question, deviceId } })
     .catch((e: Error) => console.error("[ai/stream] persist question failed:", e.message));
 
   const messages = buildLLMMessages({ question, evidence, history });
@@ -82,11 +88,10 @@ export async function POST(req: NextRequest) {
         }
       };
 
-      send({ type: "meta", sessionId, evidenceSummary: summary });
+      send({ type: "meta", sessionId, evidenceSummary: summary, seriesPreview: buildSeriesPreview(evidence) });
 
       const startedAt = Date.now();
-      let assembled = "";
-      let emittedAny = false;
+      let raw = "";
       try {
         const zai = await ZAI.create();
         const res = await zai.chat.completions.create({
@@ -96,46 +101,66 @@ export async function POST(req: NextRequest) {
           stream: true,
         });
 
+        // Buffer the FULL answer first — a ```proposal block must be stripped
+        // server-side before any text is forwarded to the client.
         if (res && typeof (res as ReadableStream<Uint8Array>).getReader === "function") {
-          // native provider streaming — forward deltas as they arrive
           for await (const delta of iterateProviderStream(res as ReadableStream<Uint8Array>)) {
-            assembled += delta;
-            emittedAny = true;
-            send({ type: "delta", text: delta });
+            raw += delta;
           }
         } else {
-          // SDK returned a complete JSON completion — re-chunk into ~6 deltas
-          const answer: string = res?.choices?.[0]?.message?.content || "";
-          if (!answer) throw new Error("empty completion from provider");
-          const size = Math.max(1, Math.ceil(answer.length / 6));
-          for (let i = 0; i < answer.length; i += size) {
-            const chunk = answer.slice(i, i + size);
-            assembled += chunk;
-            send({ type: "delta", text: chunk });
-            await new Promise((r) => setTimeout(r, 15)); // light pacing for the typewriter
-          }
-          emittedAny = true;
+          // SDK returned a complete JSON completion (fallback path)
+          raw = res?.choices?.[0]?.message?.content || "";
         }
 
-        if (!emittedAny) throw new Error("no content received from provider");
-
+        if (!raw.trim()) throw new Error("no content received from provider");
         const latencyMs = Date.now() - startedAt;
-        send({ type: "done", latencyMs });
 
-        // ---- persist the assembled assistant answer + audit ----------------
-        await db.aiInteraction.create({
-          data: {
-            sessionId, userId: user.id, role: "assistant", content: assembled,
-            evidence: JSON.stringify(summary), model: AI_MODEL_LABEL, latencyMs,
-          },
-        });
+        // ---- strip + server-validate the structured proposal block ---------
+        const { cleanText, proposal: parsedProposal } = parseProposalBlock(raw);
+        const proposal = await validateProposal(parsedProposal);
+        const cleanAnswer =
+          cleanText.trim() ||
+          (proposal
+            ? "Proposed a single operator action — see the command card for review."
+            : "(the model returned no narrative content)");
+
+        // ---- re-chunk the clean text into 8-20 paced deltas (~150ms total) -
+        const chunks = Math.max(8, Math.min(20, Math.ceil(cleanAnswer.length / 60)));
+        const size = Math.max(1, Math.ceil(cleanAnswer.length / chunks));
+        const pace = Math.max(6, Math.floor(150 / chunks));
+        for (let i = 0; i < cleanAnswer.length; i += size) {
+          send({ type: "delta", text: cleanAnswer.slice(i, i + size) });
+          await new Promise((r) => setTimeout(r, pace));
+        }
+
+        // ---- persist the clean assistant answer (device-scoped) ------------
+        await db.aiInteraction
+          .create({
+            data: {
+              sessionId, userId: user.id, role: "assistant", content: cleanAnswer,
+              evidence: JSON.stringify(summary), model: AI_MODEL_LABEL, latencyMs, deviceId,
+            },
+          })
+          .catch((e: Error) => console.error("[ai/stream] persist answer failed:", e.message));
+        const turns = await db.aiInteraction
+          .count({ where: { sessionId, userId: user.id } })
+          .catch(() => 0);
+
+        const seconds = latencyMs / 1000;
+        const charsPerSec = seconds > 0 ? Math.round(cleanAnswer.length / seconds) : cleanAnswer.length;
+
+        send({ type: "done", latencyMs, charsPerSec, turns, proposal });
+
         await audit({
           actorType: "USER", actorId: user.id, action: "AI_DIAGNOSTICS",
           resourceType: "Assistant",
           detail: {
             question: question.slice(0, 120), deviceId: deviceId || null,
             evidenceDevices: summary.devices, evidenceAlerts: summary.alerts,
-            sessionId, latencyMs, mode: "stream",
+            sessionId, latencyMs, mode: "stream", charsPerSec, turns,
+            proposal: proposal
+              ? { deviceId: proposal.deviceId, action: proposal.action }
+              : null,
           },
         });
       } catch (e) {
@@ -148,7 +173,7 @@ export async function POST(req: NextRequest) {
           outcome: "FAILURE",
           detail: {
             error: "provider unavailable (stream)", sessionId,
-            question: question.slice(0, 120), partialChars: assembled.length,
+            question: question.slice(0, 120), partialChars: raw.length,
           },
         });
       } finally {

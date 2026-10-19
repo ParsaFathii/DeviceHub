@@ -604,11 +604,10 @@ async function dispatchCommand(body: any): Promise<{ ok: boolean; error?: string
     return { ok: false, error: "device is not connected to this gateway" };
   }
   metrics.commandsRouted++;
-  await new Promise<void>((resolve) => {
-    mqttClient.publish(topic, JSON.stringify(envelope), { qos: 1 }, () => resolve());
-  });
-  void callBackend("PATCH", `/api/internal/commands/${commandId}/state`, { state: "SENT", sentAt: new Date().toISOString() });
-  void emitRealtime("command", { commandId, deviceId, action, state: "SENT" });
+  // Register the ack-wait BEFORE publishing: a fast device (the simulator acks
+  // REBOOT in <1ms) can have its acknowledgement delivered on the same
+  // event-loop tick as the QoS-1 PUBACK — i.e. before the publish callback
+  // resolves — and the ack must never be dropped as "unknown command".
   const timer = setTimeout(() => {
     const p = pendingCommands.get(commandId);
     if (p) {
@@ -620,6 +619,11 @@ async function dispatchCommand(body: any): Promise<{ ok: boolean; error?: string
     }
   }, 30000);
   pendingCommands.set(commandId, { commandId, deviceId, timer });
+  await new Promise<void>((resolve) => {
+    mqttClient.publish(topic, JSON.stringify(envelope), { qos: 1 }, () => resolve());
+  });
+  void callBackend("PATCH", `/api/internal/commands/${commandId}/state`, { state: "SENT", sentAt: new Date().toISOString() });
+  void emitRealtime("command", { commandId, deviceId, action, state: "SENT" });
   return { ok: true };
 }
 
@@ -701,7 +705,6 @@ const server = Bun.serve({
       return Response.json({ status: "ok", service: "devicehub-gateway", gatewayId: GATEWAY_ID, port: PORT });
     }
     if (req.method === "GET" && url.pathname === "/status") {
-      const res = await callBackend("GET", `/api/internal/gateways/${GATEWAY_ID}`);
       return Response.json({
         gatewayId: GATEWAY_ID,
         mqttConnected: mqttClient.connected,

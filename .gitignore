@@ -20,6 +20,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files — NEVER commit secrets
+.env
 .env*.local
 .env.production
 
@@ -78,6 +79,7 @@ tests/database-runtime-build.sh
 
 # build-time generated / environment-specific
 next-env.d.ts
+tsconfig.tsbuildinfo
 Caddyfile
 skills/
 worklog.md

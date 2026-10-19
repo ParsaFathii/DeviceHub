@@ -5,13 +5,16 @@
  * Safety boundary (enforced here, not by the model):
  *  - The LLM receives ONLY sanitized evidence: fleet/device summaries, alert
  *    records, anomaly findings, rule metadata, gateway metrics, command
- *    outcomes. No credentials, no secrets, no internal ids.
- *  - The LLM never executes commands. If the user asks for an action, the
- *    assistant returns a PROPOSAL which must be confirmed and submitted
- *    through the normal audited command flow.
+ *    outcomes. No credentials, no secrets, no internal database ids.
+ *  - The LLM never executes commands. If the model emits a ```proposal block,
+ *    it is stripped from the answer and SERVER-VALIDATED (device exists and is
+ *    not retired, action accepted by the audited command system, payload is a
+ *    plain object); only a validated proposal is returned as a reviewable
+ *    command card that must be confirmed through the normal command flow.
  *  - Output must label measured facts / rule results / ML output / hypotheses.
- *  - Both the question and the answer are persisted (AiInteraction) so the
- *    conversation can continue across turns; every call is audited.
+ *  - Both the question and the answer are persisted (AiInteraction, including
+ *    the optional deviceId scope) so the conversation can continue across
+ *    turns; every call is audited.
  * Copyright © 2026 Parsa Fathi — Apache-2.0
  */
 import { db } from "@/lib/db";
@@ -24,7 +27,9 @@ import {
   buildLLMMessages,
   gatherEvidence,
   loadSessionHistory,
+  parseProposalBlock,
   sanitizeSessionId,
+  validateProposal,
   type EvidenceSummary,
 } from "@/lib/ai-evidence";
 import { randomUUID } from "crypto";
@@ -47,13 +52,13 @@ export async function POST(req: NextRequest) {
 
     // ---- persist the operator question BEFORE the model call ----------------
     await db.aiInteraction.create({
-      data: { sessionId, userId: user.id, role: "user", content: question },
+      data: { sessionId, userId: user.id, role: "user", content: question, deviceId },
     });
 
     // ---- call the LLM with a strictly grounded system prompt ---------------
     const messages = buildLLMMessages({ question, evidence, history });
     const startedAt = Date.now();
-    let answer: string;
+    let raw: string;
     try {
       const zai = await ZAI.create();
       const completion = await zai.chat.completions.create({
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
         temperature: 0.3,
         max_tokens: 1200,
       });
-      answer = completion.choices[0]?.message?.content || "";
+      raw = completion.choices[0]?.message?.content || "";
     } catch (e) {
       const msg = (e as Error)?.message || "unknown error";
       await audit({
@@ -73,13 +78,25 @@ export async function POST(req: NextRequest) {
     }
     const latencyMs = Date.now() - startedAt;
 
-    // ---- persist the assistant answer with evidence summary -----------------
+    // ---- strip + server-validate the structured proposal block --------------
+    const { cleanText, proposal: parsedProposal } = parseProposalBlock(raw);
+    const proposal = await validateProposal(parsedProposal);
+    const answer =
+      cleanText.trim() ||
+      (proposal
+        ? "Proposed a single operator action — see the command card for review."
+        : "(the model returned no narrative content)");
+
+    // ---- persist the clean assistant answer (device-scoped) -----------------
     await db.aiInteraction.create({
       data: {
         sessionId, userId: user.id, role: "assistant", content: answer,
-        evidence: JSON.stringify(summary), model: AI_MODEL_LABEL, latencyMs,
+        evidence: JSON.stringify(summary), model: AI_MODEL_LABEL, latencyMs, deviceId,
       },
     });
+    const turns = await db.aiInteraction.count({ where: { sessionId, userId: user.id } });
+    const seconds = latencyMs / 1000;
+    const charsPerSec = seconds > 0 ? Math.round(answer.length / seconds) : answer.length;
 
     await audit({
       actorType: "USER", actorId: user.id, action: "AI_DIAGNOSTICS",
@@ -87,7 +104,8 @@ export async function POST(req: NextRequest) {
       detail: {
         question: question.slice(0, 120), deviceId: deviceId || null,
         evidenceDevices: summary.devices, evidenceAlerts: summary.alerts,
-        sessionId, latencyMs,
+        sessionId, latencyMs, charsPerSec, turns,
+        proposal: proposal ? { deviceId: proposal.deviceId, action: proposal.action } : null,
       },
     });
 
@@ -96,6 +114,9 @@ export async function POST(req: NextRequest) {
       sessionId,
       latencyMs,
       evidenceSummary: summary satisfies EvidenceSummary,
+      charsPerSec,
+      turns,
+      proposal,
       safety: {
         advisory: "AI layer is advisory only — it cannot execute commands or bypass authorization",
         proposalsRequireConfirmation: true,

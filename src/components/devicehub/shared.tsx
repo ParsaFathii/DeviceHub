@@ -25,6 +25,19 @@ export const DH = {
   success: "#10B981",
   warning: "#F59E0B",
   danger: "#EF4444",
+  /**
+   * Per-zone brand gradient pairs (lighter start → stronger end) from the approved
+   * mockups. Zone gauges use these FIXED BRAND gradients instead of semantic
+   * health colors; semantic colors remain for status indicators elsewhere.
+   */
+  zoneGradients: [
+    ["#60A5FA", "#22D3EE"], // blue → cyan
+    ["#34D399", "#2DD4BF"], // emerald → teal
+    ["#A78BFA", "#C084FC"], // purple → violet
+    ["#FBBF24", "#FB923C"], // amber → orange
+    ["#F472B6", "#FB7185"], // pink → rose
+    ["#38BDF8", "#0EA5E9"], // sky → deep sky
+  ] as [string, string][],
 };
 
 // ---- color helpers ----------------------------------------------------------
@@ -178,7 +191,7 @@ export function StatCard({
       </div>
       <div className="mt-1 flex items-baseline gap-1.5">
         <span
-          className="text-[34px] font-bold leading-none tracking-tight tabular-nums"
+          className="text-[36px] font-bold leading-none tracking-tight tabular-nums"
           style={{ color: DH.textPrimary, textShadow: "0 2px 12px rgba(148,163,184,0.15)" }}
         >
           {value}
@@ -262,14 +275,16 @@ export function SectionCard({
 /**
  * Circular gauge matching the approved mockups:
  *  - 270° sweep with a bottom notch (gap between arc end and track start)
- *  - thick rounded-cap stroke (~16% of diameter)
- *  - subtle gradient on the value arc (lighter → base)
- *  - soft glow under the value arc, animated fill on mount
+ *  - thick rounded-cap stroke (~15% of diameter)
+ *  - gradient on the value arc: fixed brand pair when `gradient` is provided,
+ *    otherwise lighter → base derived from `color`
+ *  - soft glow under the value arc (stronger end color), animated fill on mount
  *  - center: large bold tabular value + optional smaller "%" + sublabel
  */
 export function GaugeRing({
   percent,
   color,
+  gradient,
   label,
   sublabel,
   size = 96,
@@ -279,6 +294,7 @@ export function GaugeRing({
 }: {
   percent: number;
   color: string;
+  gradient?: [string, string];
   label: string | number;
   sublabel?: string;
   size?: number;
@@ -302,6 +318,13 @@ export function GaugeRing({
   const START = 135; // bottom-left
   const SWEEP = 270;
 
+  // Gradient stops along the arc (bottom-left → top-right): fixed brand pair when
+  // provided, otherwise lighter → base derived from `color`. The glow always uses
+  // the stronger end color so both modes share the same accent logic.
+  const gradStart = gradient ? gradient[0] : mix(color, 0.45);
+  const gradEnd = gradient ? gradient[1] : color;
+  const glowColor = gradEnd;
+
   const polar = (angleDeg: number): [number, number] => {
     const a = (angleDeg * Math.PI) / 180;
     return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -322,7 +345,7 @@ export function GaugeRing({
   const hasPct = labelText.endsWith("%");
   const centerValue = hasPct ? labelText.slice(0, -1) : labelText;
   const suffix = valueSuffix ?? (hasPct ? "%" : undefined);
-  const valueFontSize = Math.round(size * 0.235);
+  const valueFontSize = Math.round(size * 0.22);
   const subFontSize = Math.max(8.5, Math.round(size * 0.095));
 
   return (
@@ -330,8 +353,8 @@ export function GaugeRing({
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${labelText} ${sublabel || ""}`}>
         <defs>
           <linearGradient id={`ring-${uid}`} x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={mix(color, 0.45)} />
-            <stop offset="100%" stopColor={color} />
+            <stop offset="0%" stopColor={gradStart} />
+            <stop offset="100%" stopColor={gradEnd} />
           </linearGradient>
         </defs>
         {/* track */}
@@ -352,7 +375,7 @@ export function GaugeRing({
           pathLength={1}
           strokeDasharray={`${dash.toFixed(4)} 1`}
           style={{
-            filter: `drop-shadow(0 0 5px ${rgba(color, 0.55)})`,
+            filter: `drop-shadow(0 0 5px ${rgba(glowColor, 0.55)})`,
             transition: "stroke-dasharray 900ms cubic-bezier(0.22,1,0.36,1)",
           }}
         />
@@ -361,7 +384,7 @@ export function GaugeRing({
         <div className="flex items-baseline">
           <span
             className="font-bold leading-none tabular-nums tracking-tight"
-            style={{ color: DH.textPrimary, fontSize: valueFontSize }}
+            style={{ color: DH.textPrimary, fontSize: valueFontSize, letterSpacing: "-0.01em" }}
           >
             {centerValue}
           </span>
@@ -372,7 +395,10 @@ export function GaugeRing({
           )}
         </div>
         {sublabel && (
-          <span className="mt-1 font-medium" style={{ color: DH.textSecondary, fontSize: subFontSize }}>
+          <span
+            className="mt-1 font-medium"
+            style={{ color: DH.textSecondary, fontSize: subFontSize, letterSpacing: "0.02em" }}
+          >
             {sublabel}
           </span>
         )}

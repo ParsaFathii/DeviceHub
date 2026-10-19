@@ -15,14 +15,14 @@ export async function GET() {
       orderBy: { role: "asc" },
       select: {
         id: true, username: true, name: true, email: true, role: true, active: true,
-        createdAt: true, commands: { _count: true }, auditEvents: { _count: true },
+        createdAt: true, _count: { select: { commands: true, auditEvents: true } },
       },
     });
     return NextResponse.json({
       users: users.map((u) => ({
         id: u.id, username: u.username, name: u.name, email: u.email, role: u.role,
         active: u.active, createdAt: u.createdAt.toISOString(),
-        commandsIssued: u.commands._count, auditEvents: u.auditEvents._count,
+        commandsIssued: u._count.commands, auditEvents: u._count.auditEvents,
       })),
     });
   });

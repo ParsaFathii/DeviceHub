@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export function AnomalyView() {
   const user = useDhStore((s) => s.user);
+  const openAi = useDhStore((s) => s.openAi);
   const { toast } = useToast();
   const [evaluation, setEvaluation] = useState<any | null>(null);
 
@@ -252,6 +253,21 @@ export function AnomalyView() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() =>
+                      openAi({
+                        deviceId: f.deviceId,
+                        question: `Explain the anomaly finding for ${f.deviceId} on metric ${f.metric} (score ${f.score}, model ${f.model}). What does the evidence say and what should I check?`,
+                        autoSend: true,
+                      })
+                    }
+                    title="Explain this finding with AI"
+                    aria-label={`Explain finding for ${f.deviceId} ${f.metric} with AI`}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-150 hover:shadow-[0_0_10px_rgba(139,92,246,0.4)]"
+                    style={{ color: DH.purple, backgroundColor: rgba(DH.purple, 0.08), borderColor: rgba(DH.purple, 0.22) }}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
                   <div className="w-28">
                     <div className="mb-1 flex justify-between text-[9px]" style={{ color: DH.textSecondary }}>
                       <span>score</span>

@@ -163,25 +163,29 @@ export function OverviewView() {
         {/* Zone health gauge rings */}
         <SectionCard title="Zone Health" icon={<MapPin className="h-4 w-4" />}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {data.zones.map((z: any, i: number) => (
-              <div key={z.key} className="flex flex-col items-center gap-2">
-                <GaugeRing
-                  percent={z.avgHealth}
-                  color={healthColor(z.avgHealth)}
-                  label={`${z.avgHealth}%`}
-                  sublabel="Avg Health"
-                  size={92}
-                />
-                <div className="text-center">
-                  <div className="text-[11px] font-semibold" style={{ color: DH.textPrimary }}>{z.name}</div>
-                  <div className="text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>
-                    <span style={{ color: DH.success }}>{z.online}</span> on
-                    {z.warning > 0 && <span style={{ color: DH.warning }}> · {z.warning} warn</span>}
-                    {z.offline > 0 && <span style={{ color: DH.danger }}> · {z.offline} off</span>}
+            {data.zones.map((z: any, i: number) => {
+              const grad = DH.zoneGradients[i % DH.zoneGradients.length];
+              return (
+                <div key={z.key} className="flex flex-col items-center gap-2">
+                  <GaugeRing
+                    percent={z.avgHealth}
+                    gradient={grad}
+                    color={grad[1]}
+                    label={`${z.avgHealth}%`}
+                    sublabel="Avg Health"
+                    size={92}
+                  />
+                  <div className="text-center">
+                    <div className="text-[11px] font-semibold" style={{ color: DH.textPrimary }}>{z.name}</div>
+                    <div className="text-[10px] tabular-nums" style={{ color: DH.textSecondary }}>
+                      <span style={{ color: DH.success }}>{z.online}</span> on
+                      {z.warning > 0 && <span style={{ color: DH.warning }}> · {z.warning} warn</span>}
+                      {z.offline > 0 && <span style={{ color: DH.danger }}> · {z.offline} off</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </SectionCard>
 

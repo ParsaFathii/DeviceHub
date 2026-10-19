@@ -19,13 +19,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ rule
       where: { ruleId: rule.id },
       orderBy: { createdAt: "desc" },
       take: limit,
-      include: { device: { select: { deviceId: true, name: true } } },
     });
+    // RuleExecution rows carry the Device internal id (the model declares no
+    // `device` relation) — resolve public deviceId + name via a lookup.
+    const deviceKeys = [...new Set(executions.map((e) => e.deviceId))];
+    const devices = deviceKeys.length
+      ? await db.device.findMany({
+          where: { id: { in: deviceKeys } },
+          select: { id: true, deviceId: true, name: true },
+        })
+      : [];
+    const deviceById = new Map(devices.map((d) => [d.id, d]));
     return NextResponse.json({
       executions: executions.map((e) => ({
         outcome: e.outcome,
-        deviceId: e.device.deviceId,
-        deviceName: e.device.name,
+        deviceId: deviceById.get(e.deviceId)?.deviceId ?? e.deviceId,
+        deviceName: deviceById.get(e.deviceId)?.name ?? "unknown",
         detail: safe(e.detail),
         createdAt: e.createdAt.toISOString(),
       })),

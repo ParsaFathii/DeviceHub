@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Radio, Thermometer, Wrench, RotateCcw, Activity, AlertTriangle, Terminal, Gauge, Loader2 } from "lucide-react";
+import { Radio, Thermometer, Wrench, RotateCcw, Activity, AlertTriangle, Terminal, Gauge, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,6 +23,7 @@ const RULE_THRESHOLDS: Record<string, number | null> = {
 export function DeviceDetailView({ deviceId }: { deviceId: string | null }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const user = useDhStore((s) => s.user);
+  const openAi = useDhStore((s) => s.openAi);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -103,18 +104,35 @@ export function DeviceDetailView({ deviceId }: { deviceId: string | null }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center gap-5">
             <GaugeRing percent={d.health} color={healthColor(d.health)} label={`${d.health}%`} sublabel="Health" size={92} />
-            {canOperate && (
-              <>
-                <Button variant="outline" size="sm" className="gap-1.5 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-700/40" onClick={() => sendCommand.mutate({ action: "REBOOT" })} disabled={sendCommand.isPending}>
-                  <RotateCcw className="h-3.5 w-3.5" /> Reboot
-                </Button>
-                <Button size="sm" className="gap-1.5" style={{ backgroundColor: DH.accent }} onClick={() => setCommandOpen(true)}>
-                  <Terminal className="h-3.5 w-3.5" /> Send Command
-                </Button>
-              </>
-            )}
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-700/40"
+                title="Open the AI diagnostics assistant scoped to this device"
+                onClick={() =>
+                  openAi({
+                    deviceId: d.deviceId,
+                    question: `Analyze device ${d.deviceId} (${d.name}) — summarize recent telemetry, alerts, anomalies and current health.`,
+                    autoSend: true,
+                  })
+                }
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Ask AI about this device
+              </Button>
+              {canOperate && (
+                <>
+                  <Button variant="outline" size="sm" className="gap-1.5 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-700/40" onClick={() => sendCommand.mutate({ action: "REBOOT" })} disabled={sendCommand.isPending}>
+                    <RotateCcw className="h-3.5 w-3.5" /> Reboot
+                  </Button>
+                  <Button size="sm" className="gap-1.5" style={{ backgroundColor: DH.accent }} onClick={() => setCommandOpen(true)}>
+                    <Terminal className="h-3.5 w-3.5" /> Send Command
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">

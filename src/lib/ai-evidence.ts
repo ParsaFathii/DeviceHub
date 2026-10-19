@@ -28,8 +28,8 @@ export interface EvidenceSummary {
   origin: string;
 }
 
-export const EVIDENCE_CHAR_LIMIT = 24000;
-export const HISTORY_TURNS = 8;
+export const EVIDENCE_CHAR_LIMIT = 30000;
+export const HISTORY_TURNS = 10;
 export const AI_MODEL_LABEL = "z-ai-chat";
 
 /** Session ids must be opaque safe tokens (they come from clients). */
@@ -52,7 +52,7 @@ function num(v: unknown, fallback = 0): number {
 }
 
 // ---------------------------------------------------------------------------
-// System prompt — the 7 original safety rules + 3 multi-turn/formatting rules
+// System prompt — safety rules + multi-turn/formatting/proposal rules
 // ---------------------------------------------------------------------------
 
 export function buildSystemPrompt(): string {
@@ -69,6 +69,11 @@ RULES YOU MUST FOLLOW:
 8. This may be a multi-turn conversation: use prior turns only for context (e.g. resolving "that device" or "the offline ones"), but re-ground EVERY claim in the CURRENT evidence provided with the latest question.
 9. Structure answers with short bold section headers (like **Fleet status**), ### headings and "- " bullet lists so the operator can scan quickly.
 10. When an answer implies operational follow-up, end with a short "Suggested operator check" list.
+11. CITATION: When you reference a specific device in your answer, wrap its deviceId in square brackets, e.g. [DH-ENV-001] — the interface renders these as clickable references.
+12. TABLES: When comparing multiple devices or metrics, prefer a compact markdown table (pipe columns with a header separator row).
+13. PROPOSAL: If (and only if) a concrete single-device operator action is genuinely warranted by the evidence, append at the VERY END of your answer a fenced block: \`\`\`proposal
+{"deviceId":"DH-...","action":"REBOOT|SET_INTERVAL|RESET_ENERGY|SELF_TEST","payload":{...},"rationale":"one sentence"}
+\`\`\` — for SET_INTERVAL the payload must be {"intervalSec": <integer between 2 and 300>}; the other actions take {}. Action support varies by device type: REBOOT and SET_INTERVAL are widely supported, RESET_ENERGY applies to POWER_METER devices, SELF_TEST to VIBRATION devices. The interface strips this block and renders a reviewable command card. Never propose actions for multiple devices in one block; never propose anything not justified by evidence.
 
 Respond in the same language as the question (English or Persian).`;
 }
@@ -88,7 +93,7 @@ export async function loadSessionHistory(sessionId: string, userId: string): Pro
     .reverse()
     .map((r) => ({
       role: r.role === "user" ? ("user" as const) : ("assistant" as const),
-      content: r.content.slice(0, 4000),
+      content: r.content.slice(0, 3500),
     }))
     .filter((m) => m.content.trim().length > 0);
 }
@@ -109,7 +114,10 @@ interface SeriesAcc {
 export async function gatherEvidence(
   deviceId: string | null
 ): Promise<{ evidence: Record<string, unknown>; summary: EvidenceSummary }> {
-  const evidence: Record<string, unknown> = { generatedAt: new Date().toISOString() };
+  const evidence: Record<string, unknown> = {
+    evidenceVersion: 2,
+    generatedAt: new Date().toISOString(),
+  };
   const since = new Date(Date.now() - 3600_000);
   const since24 = new Date(Date.now() - 24 * 3600_000);
 
@@ -247,6 +255,8 @@ export async function gatherEvidence(
       deviceId: dev, metric, latest: st.latest, min, max,
       avg: Number(avg.toFixed(2)), stddev: Number(stddev.toFixed(3)),
       trend: `${trend} (last10 avg ${avgL.toFixed(2)} vs prev10 avg ${avgP.toFixed(2)})`,
+      trendShort: trend,
+      spark: values.slice(-24).map((v) => Number(v.toFixed(2))), // last ≤24 raw values, chronological (sparkline)
       unit: st.unit, samplesLastHour: values.length, latestTs: st.latestTs,
       quality: st.quality, qualityDistribution: st.q,
     };
@@ -266,7 +276,7 @@ export async function gatherEvidence(
   }));
 
   // ---- gateway status + parsed metrics --------------------------------------
-  const gatewayIds = new Set(devices.map((d) => d.gatewayId).filter(Boolean));
+  const gatewayIds = new Set(devices.map((d) => d.gatewayId).filter((g): g is string => g !== null));
   const gateways = await db.gateway.findMany({
     where: deviceId ? { id: { in: [...gatewayIds] } } : { state: { not: "RETIRED" } },
     orderBy: { registeredAt: "asc" },
@@ -385,4 +395,156 @@ export async function* iterateProviderStream(
   } finally {
     reader.releaseLock();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Structured command proposals (server-validated before reaching a client)
+// ---------------------------------------------------------------------------
+
+/** Union of actions accepted by POST /api/commands across device capabilities. */
+export const COMMAND_ACTIONS = ["REBOOT", "SET_INTERVAL", "RESET_ENERGY", "SELF_TEST"] as const;
+export type CommandAction = (typeof COMMAND_ACTIONS)[number];
+
+export interface CommandProposal {
+  deviceId: string;
+  action: string;
+  payload: Record<string, unknown>;
+  rationale: string;
+}
+
+/** Matches the FIRST fenced ```proposal block (```proposal or ```proposal\n … ```). */
+const PROPOSAL_BLOCK_RE = /```proposal[ \t]*\r?\n?([\s\S]*?)```/i;
+
+/**
+ * Split a raw model answer into the operator-visible text and the trailing
+ * structured proposal block. The block is ALWAYS stripped from cleanText;
+ * `proposal` is null when absent or not parseable as JSON (defensive — the
+ * model is a text producer, not a trusted structured source).
+ */
+export function parseProposalBlock(answerText: string): {
+  cleanText: string;
+  proposal: CommandProposal | null;
+} {
+  const text = typeof answerText === "string" ? answerText : "";
+  const m = text.match(PROPOSAL_BLOCK_RE);
+  if (!m || typeof m.index !== "number") return { cleanText: text.trim(), proposal: null };
+
+  let proposal: CommandProposal | null = null;
+  try {
+    const raw = JSON.parse(m[1].trim()) as Record<string, unknown>;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const deviceId = typeof raw.deviceId === "string" ? raw.deviceId.trim() : "";
+      const action = typeof raw.action === "string" ? raw.action.trim().toUpperCase() : "";
+      if (deviceId && action) {
+        proposal = {
+          deviceId,
+          action,
+          payload:
+            raw.payload && typeof raw.payload === "object" && !Array.isArray(raw.payload)
+              ? (raw.payload as Record<string, unknown>)
+              : {},
+          rationale: typeof raw.rationale === "string" ? raw.rationale.trim().slice(0, 400) : "",
+        };
+      }
+    }
+  } catch {
+    proposal = null; // malformed JSON → treated as no proposal, block still stripped
+  }
+
+  const cleanText = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
+  return { cleanText, proposal };
+}
+
+/**
+ * Server-side validation of a parsed proposal against the SAME rules the
+ * audited command system enforces (POST /api/commands):
+ *  - deviceId must exist in the DB and the device must not be RETIRED;
+ *  - action must be one of the real accepted actions AND supported by that
+ *    device's capabilities (when capabilities list commands);
+ *  - payload must be a plain object (or {}); SET_INTERVAL additionally needs
+ *    intervalSec ∈ [2, 300] — otherwise the command system would reject it.
+ * Returns the validated proposal or null (never throws).
+ */
+export async function validateProposal(proposal: CommandProposal | null): Promise<CommandProposal | null> {
+  if (!proposal) return null;
+  const deviceId = typeof proposal.deviceId === "string" ? proposal.deviceId.trim() : "";
+  const action = typeof proposal.action === "string" ? proposal.action.trim().toUpperCase() : "";
+  if (!deviceId || !(COMMAND_ACTIONS as readonly string[]).includes(action)) return null;
+
+  const device = await db.device.findFirst({
+    where: { deviceId, state: { not: "RETIRED" } },
+    select: { capabilities: true },
+  });
+  if (!device) return null;
+
+  // the command system accepts an action only if the target device supports it
+  const caps = safe(device.capabilities);
+  const supported = Array.isArray(caps.commands)
+    ? caps.commands.filter((c): c is string => typeof c === "string")
+    : [];
+  if (supported.length > 0 && !supported.includes(action)) return null;
+
+  const payload =
+    proposal.payload && typeof proposal.payload === "object" && !Array.isArray(proposal.payload)
+      ? (proposal.payload as Record<string, unknown>)
+      : {};
+  if (action === "SET_INTERVAL") {
+    const s = Number(payload.intervalSec);
+    if (!Number.isFinite(s) || s < 2 || s > 300) return null;
+  }
+
+  return {
+    deviceId,
+    action,
+    payload,
+    rationale: typeof proposal.rationale === "string" ? proposal.rationale.trim().slice(0, 400) : "",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Series preview (meta event payload: top telemetry series by sample count)
+// ---------------------------------------------------------------------------
+
+export type TrendWord = "rising" | "falling" | "flat" | "insufficient-history";
+const TREND_WORDS: readonly string[] = ["rising", "falling", "flat", "insufficient-history"];
+
+export interface SeriesStat {
+  deviceId: string;
+  metric: string;
+  latest: number;
+  min: number;
+  max: number;
+  avg: number;
+  stddev: number;
+  trend: string;
+  trendShort: TrendWord;
+  spark: number[];
+  unit: string;
+  samplesLastHour: number;
+  latestTs: string;
+  quality: string;
+  qualityDistribution: { GOOD: number; SUSPECT: number; BAD: number };
+}
+
+export interface SeriesPreviewItem {
+  deviceId: string;
+  metric: string;
+  trend: TrendWord;
+  unit: string;
+  last: number;
+}
+
+/** Top 8 telemetry series by sample count, mapped to the compact preview shape. */
+export function buildSeriesPreview(evidence: Record<string, unknown>): SeriesPreviewItem[] {
+  const stats = Array.isArray(evidence.telemetryStats) ? (evidence.telemetryStats as SeriesStat[]) : [];
+  return [...stats]
+    .sort((a, b) => (b.samplesLastHour || 0) - (a.samplesLastHour || 0))
+    .slice(0, 8)
+    .map((s) => ({
+      deviceId: s.deviceId,
+      metric: s.metric,
+      trend: (TREND_WORDS.includes(s.trendShort) ? s.trendShort : "flat") as TrendWord,
+      unit: s.unit,
+      last: Number((typeof s.latest === "number" ? s.latest : 0).toFixed(2)),
+    }));
 }

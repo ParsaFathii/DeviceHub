@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Radio, Wifi, WifiOff, AlertTriangle, Search, Plus, MoreVertical, Thermometer, Zap, Loader2 } from "lucide-react";
+import { Radio, Wifi, WifiOff, AlertTriangle, Search, Plus, MoreVertical, Thermometer, Zap, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function DevicesView({ search: externalSearch }: { search?: string }) {
@@ -21,6 +21,7 @@ export function DevicesView({ search: externalSearch }: { search?: string }) {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [provisionOpen, setProvisionOpen] = useState(false);
   const openDevice = useDhStore((s) => s.openDevice);
+  const openAi = useDhStore((s) => s.openAi);
   const user = useDhStore((s) => s.user);
   const { toast } = useToast();
 
@@ -50,7 +51,7 @@ export function DevicesView({ search: externalSearch }: { search?: string }) {
     alerts: (data?.devices || []).filter((d: any) => d.state === "DEGRADED" || d.state === "ERROR").length,
   };
 
-  const types = [...new Set((data?.devices || []).map((d: any) => d.type))];
+  const types = [...new Set((data?.devices || []).map((d: any) => d.type))] as string[];
 
   return (
     <div className="space-y-5">
@@ -163,9 +164,26 @@ export function DevicesView({ search: externalSearch }: { search?: string }) {
                     ) : <span className="text-[12px]" style={{ color: DH.textSecondary }}>—</span>}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <button className="rounded-lg p-1.5 hover:bg-slate-700/50" style={{ color: DH.textSecondary }}>
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() =>
+                          openAi({
+                            deviceId: d.deviceId,
+                            question: `Analyze device ${d.deviceId} (${d.name}) — summarize recent telemetry, alerts, anomalies and current health.`,
+                            autoSend: true,
+                          })
+                        }
+                        title="Ask AI about this device"
+                        aria-label={`Ask AI about ${d.deviceId}`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-slate-700/50"
+                        style={{ color: DH.purple }}
+                      >
+                        <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button className="rounded-lg p-1.5 hover:bg-slate-700/50" style={{ color: DH.textSecondary }}>
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

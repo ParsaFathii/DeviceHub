@@ -42,12 +42,21 @@ export interface LiveSample {
   simulated?: boolean;
 }
 
+export interface AiSeed {
+  deviceId?: string;
+  question?: string;
+  autoSend?: boolean;
+}
+
 interface DeviceState {
   // navigation
   view: ViewId;
   selectedDeviceId: string | null;
   setView: (v: ViewId) => void;
   openDevice: (deviceId: string) => void;
+  aiSeed: AiSeed | null;
+  openAi: (seed: AiSeed) => void;
+  clearAiSeed: () => void;
 
   // auth
   user: User | null;
@@ -78,6 +87,9 @@ export const useDhStore = create<DeviceState>((set) => ({
   selectedDeviceId: null,
   setView: (v) => set({ view: v }),
   openDevice: (deviceId) => set({ view: "device-detail", selectedDeviceId: deviceId }),
+  aiSeed: null,
+  openAi: (seed) => set({ aiSeed: seed, view: "ai" }),
+  clearAiSeed: () => set({ aiSeed: null }),
 
   user: null,
   setUser: (u) => set({ user: u }),

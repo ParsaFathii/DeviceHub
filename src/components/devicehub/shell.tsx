@@ -3,7 +3,7 @@
  * Copyright © 2026 Parsa Fathi — Apache-2.0
  */
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDhStore, ViewId } from "@/lib/store";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -55,14 +55,100 @@ const VIEW_TITLES: Record<ViewId, { title: string; subtitle: string }> = {
   settings: { title: "Settings", subtitle: "Users, simulator control and platform services" },
 };
 
+// Memoized view components — prevents Shell re-renders (e.g. topbar live counters)
+// from cascading into the heavy view trees (charts, tables).
+const MemoOverviewView = memo(OverviewView);
+const MemoDevicesView = memo(DevicesView);
+const MemoDeviceDetailView = memo(DeviceDetailView);
+const MemoGatewaysView = memo(GatewaysView);
+const MemoTelemetryExplorerView = memo(TelemetryExplorerView);
+const MemoAutomationView = memo(AutomationView);
+const MemoAlertsView = memo(AlertsView);
+const MemoAnomalyView = memo(AnomalyView);
+const MemoCommandsAuditView = memo(CommandsAuditView);
+const MemoAiDiagnosticsView = memo(AiDiagnosticsView);
+const MemoSettingsView = memo(SettingsView);
+
+/** Topbar live-ingest chip — isolates the frequently-updating ingestCounter subscription. */
+function LiveIngestChip() {
+  const ingestCounter = useDhStore((s) => s.ingestCounter);
+  return (
+    <span className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tabular-nums lg:flex" style={{ color: DH.cyan, backgroundColor: rgba(DH.cyan, 0.08), border: `1px solid ${rgba(DH.cyan, 0.2)}` }}>
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: DH.cyan, boxShadow: `0 0 6px ${rgba(DH.cyan, 0.9)}` }} />
+      {ingestCounter > 0 ? `${ingestCounter} live samples` : "awaiting data"}
+    </span>
+  );
+}
+
+/** Topbar activity bell — isolates the frequently-updating activityFeed subscription. */
+function ActivityBell() {
+  const activityFeed = useDhStore((s) => s.activityFeed);
+  const socketConnected = useDhStore((s) => s.socketConnected);
+
+  // live alert count for the bell badge
+  const { data: alertsData } = useQuery({
+    queryKey: ["alerts", "bell"],
+    queryFn: async () => {
+      const res = await fetch("/api/alerts?state=ACTIVE&limit=5");
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+  const activeAlerts = alertsData?.kpis?.critical ?? 0;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="relative flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-700/40" style={{ color: DH.textSecondary }}>
+          <Bell className="h-[18px] w-[18px]" />
+          {activeAlerts > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white" style={{ backgroundColor: DH.danger }}>
+              {activeAlerts}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[340px] border-slate-700 bg-[#151E2D] p-0" sideOffset={8}>
+        <div className="border-b px-4 py-3 text-[13px] font-semibold text-slate-100" style={{ borderColor: DH.border }}>
+          Recent Activity {socketConnected ? "(live)" : "(offline)"}
+        </div>
+        <div className="max-h-[320px] overflow-y-auto p-2">
+          {activityFeed.length === 0 && (
+            <div className="px-3 py-8 text-center text-[12px]" style={{ color: DH.textSecondary }}>
+              No live activity yet — waiting for platform events…
+            </div>
+          )}
+          {activityFeed.slice(0, 12).map((a) => (
+            <div key={a.id} className="rounded-lg px-3 py-2 hover:bg-slate-700/30">
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor:
+                      a.type === "ALERT" ? DH.danger :
+                      a.type === "COMMAND" ? DH.accent :
+                      a.type === "GATEWAY" ? DH.warning :
+                      a.type === "ANOMALY" ? DH.purple : DH.success,
+                  }}
+                />
+                <span className="text-[12px] leading-snug" style={{ color: DH.textPrimary }}>{a.message}</span>
+              </div>
+              <div className="pl-3.5 text-[10px]" style={{ color: DH.textSecondary }}>{new Date(a.ts).toLocaleTimeString()}</div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function Shell() {
   const view = useDhStore((s) => s.view);
   const setView = useDhStore((s) => s.setView);
   const user = useDhStore((s) => s.user);
   const setUser = useDhStore((s) => s.setUser);
   const socketConnected = useDhStore((s) => s.socketConnected);
-  const ingestCounter = useDhStore((s) => s.ingestCounter);
-  const activityFeed = useDhStore((s) => s.activityFeed);
   const selectedDeviceId = useDhStore((s) => s.selectedDeviceId);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [search, setSearch] = useState("");
@@ -70,7 +156,7 @@ export function Shell() {
   useRealtime(true);
   const queryClient = useQueryClient();
 
-  // live alert count for the bell badge
+  // live alert count for the sidebar nav badge (shared "bell" cache entry with ActivityBell)
   const { data: alertsData } = useQuery({
     queryKey: ["alerts", "bell"],
     queryFn: async () => {
@@ -233,52 +319,8 @@ export function Shell() {
                 />
               </div>
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                <span className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tabular-nums lg:flex" style={{ color: DH.cyan, backgroundColor: rgba(DH.cyan, 0.08), border: `1px solid ${rgba(DH.cyan, 0.2)}` }}>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: DH.cyan, boxShadow: `0 0 6px ${rgba(DH.cyan, 0.9)}` }} />
-                  {ingestCounter > 0 ? `${ingestCounter} live samples` : "awaiting data"}
-                </span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="relative flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-700/40" style={{ color: DH.textSecondary }}>
-                      <Bell className="h-[18px] w-[18px]" />
-                      {activeAlerts > 0 && (
-                        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white" style={{ backgroundColor: DH.danger }}>
-                          {activeAlerts}
-                        </span>
-                      )}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[340px] border-slate-700 bg-[#151E2D] p-0" sideOffset={8}>
-                    <div className="border-b px-4 py-3 text-[13px] font-semibold text-slate-100" style={{ borderColor: DH.border }}>
-                      Recent Activity {socketConnected ? "(live)" : "(offline)"}
-                    </div>
-                    <div className="max-h-[320px] overflow-y-auto p-2">
-                      {activityFeed.length === 0 && (
-                        <div className="px-3 py-8 text-center text-[12px]" style={{ color: DH.textSecondary }}>
-                          No live activity yet — waiting for platform events…
-                        </div>
-                      )}
-                      {activityFeed.slice(0, 12).map((a) => (
-                        <div key={a.id} className="rounded-lg px-3 py-2 hover:bg-slate-700/30">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  a.type === "ALERT" ? DH.danger :
-                                  a.type === "COMMAND" ? DH.accent :
-                                  a.type === "GATEWAY" ? DH.warning :
-                                  a.type === "ANOMALY" ? DH.purple : DH.success,
-                              }}
-                            />
-                            <span className="text-[12px] leading-snug" style={{ color: DH.textPrimary }}>{a.message}</span>
-                          </div>
-                          <div className="pl-3.5 text-[10px]" style={{ color: DH.textSecondary }}>{new Date(a.ts).toLocaleTimeString()}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <LiveIngestChip />
+                <ActivityBell />
                 <div className="hidden h-6 w-px sm:block" style={{ backgroundColor: DH.border }} />
                 <div className="flex items-center gap-2.5">
                   <Avatar className="h-9 w-9 border" style={{ borderColor: rgba(DH.accent, 0.3) }}>
@@ -310,17 +352,17 @@ export function Shell() {
             {/* View content */}
             <main className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ maxHeight: "calc(100vh - 132px)" }}>
               <div className="mx-auto max-w-[1400px]">
-                {view === "overview" && <OverviewView />}
-                {view === "devices" && <DevicesView search={search} />}
-                {view === "device-detail" && <DeviceDetailView deviceId={selectedDeviceId} />}
-                {view === "gateways" && <GatewaysView />}
-                {view === "telemetry" && <TelemetryExplorerView />}
-                {view === "automation" && <AutomationView />}
-                {view === "alerts" && <AlertsView />}
-                {view === "anomaly" && <AnomalyView />}
-                {view === "commands" && <CommandsAuditView />}
-                {view === "ai" && <AiDiagnosticsView />}
-                {view === "settings" && <SettingsView />}
+                {view === "overview" && <MemoOverviewView />}
+                {view === "devices" && <MemoDevicesView search={search} />}
+                {view === "device-detail" && <MemoDeviceDetailView deviceId={selectedDeviceId} />}
+                {view === "gateways" && <MemoGatewaysView />}
+                {view === "telemetry" && <MemoTelemetryExplorerView />}
+                {view === "automation" && <MemoAutomationView />}
+                {view === "alerts" && <MemoAlertsView />}
+                {view === "anomaly" && <MemoAnomalyView />}
+                {view === "commands" && <MemoCommandsAuditView />}
+                {view === "ai" && <MemoAiDiagnosticsView />}
+                {view === "settings" && <MemoSettingsView />}
               </div>
             </main>
           </div>

@@ -49,6 +49,7 @@ model AiInteraction {
   evidence  String   @default("{}") // JSON evidence summary for assistant turns
   model     String?
   latencyMs Int?
+  deviceId  String?  // optional device scope the turn was asked about (public DH-XXX-NNN id)
   createdAt DateTime @default(now())
 
   @@index([sessionId, createdAt])

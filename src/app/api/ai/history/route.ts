@@ -1,6 +1,6 @@
 /**
  * DeviceHub API — AI conversation history (persisted AiInteraction rows).
- * GET    /api/ai/history                 → { sessions: [...], total }
+ * GET    /api/ai/history                 → { sessions: [...], total, stats: {...} }
  * GET    /api/ai/history?sessionId=xxx   → { interactions: [...] }
  * DELETE /api/ai/history?sessionId=xxx   → { deleted: n }  (own sessions only)
  *
@@ -74,7 +74,26 @@ export async function GET(req: NextRequest) {
       Prisma.sql`SELECT COUNT(DISTINCT sessionId) AS cnt FROM AiInteraction WHERE userId = ${user.id}`
     );
     const total = Number(totalRes[0]?.cnt ?? 0);
-    return NextResponse.json({ sessions, total });
+
+    // ---- interaction stats (aggregated server-side, not row-loaded) ---------
+    const [agg, lastAssistant, totalInteractions] = await Promise.all([
+      db.aiInteraction.aggregate({
+        where: { userId: user.id, role: "assistant", latencyMs: { not: null } },
+        _avg: { latencyMs: true },
+      }),
+      db.aiInteraction.findFirst({
+        where: { userId: user.id, role: "assistant", latencyMs: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { latencyMs: true },
+      }),
+      db.aiInteraction.count({ where: { userId: user.id } }),
+    ]);
+    const stats = {
+      avgLatencyMs: agg._avg.latencyMs == null ? null : Math.round(agg._avg.latencyMs),
+      lastLatencyMs: lastAssistant?.latencyMs ?? null,
+      totalInteractions,
+    };
+    return NextResponse.json({ sessions, total, stats });
   });
 }
 

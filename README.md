@@ -17,7 +17,7 @@ DeviceHub is a self-contained IoT platform that exercises a complete edge-to-clo
 - A **Next.js backend** persists to a relational store (SQLite via Prisma in this deployment), enforces **role-based authentication** server-side, and exposes a REST API.
 - A **Python FastAPI analytics service** runs anomaly detection (IsolationForest + a deterministic z-score baseline) and was evaluated on a labeled synthetic dataset.
 - A **socket.io realtime service** streams events to the web client.
-- An **AI diagnostics assistant** answers operational questions strictly from recorded evidence and is advisory-only — it cannot execute commands.
+- An **AI diagnostics assistant** answers operational questions strictly from recorded evidence and is advisory-only — it cannot execute commands, but it can propose operator actions that only take effect after explicit human confirmation through the audited command flow.
 
 Everything in this deployment runs on **simulated devices** (16 seeded, deterministic simulators across 6 behaviour profiles). All simulator data is explicitly labelled as such everywhere it appears. See [Documented limitations](#documented-limitations).
 
@@ -63,6 +63,14 @@ The data path is real and was verified under failure injection: backend outages,
 
 Deep dive: [ARCHITECTURE.md](ARCHITECTURE.md). Security model: [SECURITY.md](SECURITY.md).
 
+### Performance
+
+DeviceHub parallelises at the **process level** and keeps the web client cheap to render:
+
+- **Six independent services, each on its own OS process (and core):** web/API (Next.js, :3000), MQTT broker (:1883), edge gateway (:3011), device simulator (:3012), realtime fan-out (:3013), and the Python ML analytics service (:3014). Telemetry ingestion, edge rule evaluation, ML scoring, and UI serving all proceed concurrently — no single service can starve the others.
+- **In-app:** realtime socket subscriptions are isolated into tiny leaf components (the live-ingest chip and the activity bell), so a telemetry flush every ~2 s no longer re-renders the whole view tree; all 11 views are memoized and routes are pre-warmed after server start; SQLite runs with WAL and indexed hot paths.
+- Measured in this environment: **every view loads in under 1 s after warm-up** (API responses 7–100 ms), and switching between pre-warmed views is instantaneous.
+
 ---
 
 ## Live demo views
@@ -80,7 +88,7 @@ The web client is a single-page app at `/` with a dark industrial theme and 11 v
 | Alerts | Alert lifecycle (ACTIVE → ACKNOWLEDGED → RESOLVED) |
 | Anomaly Analysis | ML findings from both models, scores, windows |
 | Commands & Audit | Command lifecycle with real device acknowledgements; audit trail |
-| AI Diagnostics | Evidence-grounded Q&A (advisory only) |
+| AI Diagnostics | Evidence-grounded Q&A with reviewable proposed actions (advisory only) |
 | Settings | Session/account info, service status, simulator controls |
 
 Screenshots (captured from the running application — all data is clearly-labelled simulator data):
@@ -99,15 +107,16 @@ Screenshots (captured from the running application — all data is clearly-label
 ### Recorded test runs (GIFs)
 
 The following recordings are real, unscripted test runs captured from the live platform
-(reproducible via the scripts in `tests/gifs/`):
+(re-recorded through the reverse-proxy origin so the realtime socket is live in every frame,
+and with dev-server indicators disabled; reproducible via the scripts in `tests/gifs/`):
 
 | Test recording | What it shows |
 |---|---|
 | ![Live fleet overview](docs/assets/test-live-overview.gif) | Login → Fleet Overview streaming realtime telemetry, alerts and activity over socket.io |
 | ![Telemetry Explorer](docs/assets/test-telemetry-explorer.gif) | Device/metric/range selection; red threshold overlay on the THRESHOLD_VIOLATION device; aggregation buckets |
 | ![Command lifecycle](docs/assets/test-command-lifecycle.gif) | SELF_TEST command dispatched via MQTT → device acknowledgement → lifecycle stepper reaches SUCCEEDED with ack detail |
-| ![Offline buffering](docs/assets/test-offline-buffering.gif) | **Failure injection:** 90 s backend outage → gateway enters BUFFERING, 158 records spool to durable SQLite → outage ends → automatic drain → spool empty + DRAINED event |
-| ![AI diagnostics](docs/assets/test-ai-diagnostics.gif) | Evidence-grounded answer with `[measured fact]` / `[rule result]` / `[hypothesis]` labels and evidence footer |
+| ![Offline buffering](docs/assets/test-offline-buffering.gif) | **Failure injection:** 90 s backend outage → gateway enters BUFFERING and telemetry spools to the durable SQLite store → outage ends → automatic drain → spool empty + DRAINED event |
+| ![AI diagnostics](docs/assets/test-ai-diagnostics.gif) | Evidence-grounded streaming answer with `[measured fact]` / `[rule result]` / `[hypothesis]` provenance labels, clickable `[DH-XXX]` citations, a Markdown table, and the evidence footer with series-trend chips |
 | ![Anomaly detection](docs/assets/test-anomaly-detection.gif) | IsolationForest + z-score baseline run over stored telemetry; findings with model scores |
 
 ---
@@ -316,12 +325,18 @@ Read this as an honest characterisation, not a benchmark claim: the IsolationFor
 
 ## AI diagnostics — and its safety boundary
 
-`POST /api/ai/diagnostics` answers operational questions using the `z-ai-chat` provider, with the boundary **enforced in code, not by the model's goodwill**:
+`POST /api/ai/diagnostics` (plus a streaming variant, `POST /api/ai/diagnostics/stream`) answers operational questions using the `z-ai-chat` provider, with the boundary **enforced in code, not by the model's goodwill**:
 
-- The model receives **only sanitized evidence**: fleet/device summaries, recent alerts, anomaly findings, rule metadata, recent telemetry statistics. No credentials, no secrets.
-- Answers must label statements as `[measured fact]`, `[rule result]`, `[ML output]`, `[hypothesis]`, or `[recommendation]`.
-- The assistant **cannot execute commands**. Verified by test: asked to execute an action, it refuses and proposes the command an authorized operator could submit through the audited flow. After that exchange, the count of AI-sourced commands in the audit log is **0**.
+- The model receives **only sanitized evidence**: fleet/device summaries, recent alerts, anomaly findings, rule metadata, and recent per-series telemetry statistics (including sparklines and trend words). No credentials, no secrets.
+- Answers must label statements as `[measured fact]`, `[rule result]`, `[ML output]`, `[hypothesis]`, or `[recommendation]`. Device references render as **clickable `[DH-XXX]` citations** that jump straight to the device detail view, and answers may include **compact Markdown tables** (e.g. per-zone comparisons).
+- The assistant **cannot execute commands**. It may *propose* one — but a proposal is inert text until a human acts on it: the backend parses and **server-validates** every proposal block (device must exist and not be retired, action must be in the device's capabilities, payload sane) before it reaches the client, the UI renders it as a reviewable **PROPOSED ACTION** card, and only an authenticated OPERATOR/ADMIN can submit it — through the exact same audited command lifecycle as a manual command, recorded with source `AI_PROPOSAL`. VIEWERs see the card with submission disabled.
+- **Cross-view entry points:** "Ask AI about this device" from the Devices list and Device Detail, and "Explain this finding with AI" on anomaly findings, each open AI Diagnostics with the device scope pre-selected and a seeded question.
+- **Streaming UX:** answers stream token-by-token and can be **cancelled mid-stream** (the partial answer is kept and marked interrupted — including a coherent bubble when cancelled before the first character) and the last answer can be **regenerated**; each answer reports latency and characters-per-second, and the selected device scope is persisted with every turn in the interaction history.
+- **Live KPIs:** the provider health check performs a **real tiny completion ping** (cached 60 s) and surfaces as an ONLINE/OFFLINE + latency KPI, alongside conversation-count and average/last-response-latency stats aggregated from persisted history.
+- The evidence footer shows exactly what each answer was grounded in — evidence counts plus **series-trend chips (↑/↓/→)** for the most active telemetry series.
 - If the AI provider is unavailable, the rest of the platform is fully operational (the endpoint degrades; the data path does not).
+
+![AI-proposed action card with audited command submission](docs/assets/ai-proposal.png)
 
 ---
 
